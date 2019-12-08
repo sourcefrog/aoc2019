@@ -9,7 +9,7 @@ pub fn main() {
 
 fn solve_a() -> isize {
     let mut computer = Computer::new(load_input());
-    computer.push_input(&[1]);
+    computer.push_input(1);
     computer.run();
     // Output should be all 0s except the last element, which is the answer.
     let out = computer.output;
@@ -23,8 +23,8 @@ fn load_input() -> Vec<isize> {
 }
 
 fn parse_string(s: &str) -> Vec<isize> {
-    s.trim()
-        .split(',')
+    s.split(',')
+        .map(str::trim)
         .map(str::parse)
         .map(Result::unwrap)
         .collect()
@@ -96,6 +96,7 @@ impl Insn {
     }
 }
 
+#[derive(Clone, Debug)]
 struct Computer {
     mem: Vec<isize>,
     pc: usize,
@@ -119,9 +120,9 @@ impl Computer {
         Computer::new(parse_string(s))
     }
 
-    /// Make these values available for input instructions.
-    pub fn push_input(&mut self, input: &[isize]) {
-        self.input.extend(input)
+    /// Make a value available for input instructions.
+    pub fn push_input(&mut self, input: isize) {
+        self.input.push_back(input)
     }
 
     /// Evaluate the next instruction.
@@ -244,7 +245,7 @@ mod test {
     #[test]
     fn input() {
         let mut computer = Computer::from_string("3,3,99,9999");
-        computer.push_input(&[8888]);
+        computer.push_input(8888);
         computer.run();
         assert_eq!(computer.mem, parse_string("3,3,99,8888"));
         assert!(computer.input.is_empty());
@@ -274,9 +275,28 @@ mod test {
             ("3,3,1105,-1,9,1101,0,0,12,4,12,99,1", -1, 1),
         ] {
             let mut c = Computer::from_string(code);
-            c.push_input(&[*input]);
+            c.push_input(*input);
             c.run();
             assert!(c.input.is_empty());
+            assert_eq!(c.output, &[*output]);
+        }
+    }
+
+    #[test]
+    fn example_b_large() {
+        let cbase = Computer::from_string(
+            "3,21,1008,21,8,20,1005,20,22,107,8,21,20,1006,20,31,
+        1106,0,36,98,0,0,1002,21,125,20,4,20,1105,1,46,104,
+        999,1105,1,46,1101,1000,1,20,4,20,1105,1,46,98,99",
+        );
+        // The above example program uses an input instruction to ask for a
+        // single number. The program will then output 999 if the input value
+        // is below 8, output 1000 if the input value is equal to 8, or output
+        // 1001 if the input value is greater than 8.
+        for (input, output) in &[(7, 999), (8, 1000), (123, 1001)] {
+            let mut c = cbase.clone();
+            c.push_input(*input);
+            c.run();
             assert_eq!(c.output, &[*output]);
         }
     }
