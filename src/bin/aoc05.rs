@@ -5,6 +5,7 @@ use std::convert::TryInto;
 
 pub fn main() {
     println!("05a: {}", solve_a());
+    println!("05b: {}", solve_b());
 }
 
 fn solve_a() -> isize {
@@ -16,6 +17,14 @@ fn solve_a() -> isize {
     let (confirms, ans) = out.split_at(out.len() - 1);
     assert!(confirms.iter().all(|i| *i == 0));
     ans[0]
+}
+
+fn solve_b() -> isize {
+    let mut c = Computer::new(load_input());
+    c.push_input(5);
+    c.run();
+    assert_eq!(c.output.len(), 1);
+    c.output[0]
 }
 
 fn load_input() -> Vec<isize> {
@@ -299,5 +308,10 @@ mod test {
             c.run();
             assert_eq!(c.output, &[*output]);
         }
+    }
+
+    #[test]
+    fn solution_b() {
+        assert_eq!(solve_b(), 7_616_021)
     }
 }
