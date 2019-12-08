@@ -1,0 +1,10 @@
+[package]
+name = "mbp-aoc2019"
+version = "0.1.0"
+authors = ["Martin Pool <mbp@sourcefrog.net>"]
+edition = "2018"
+description = "Solutions to https://adventofcode.com/2019"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
