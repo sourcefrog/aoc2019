@@ -42,6 +42,6 @@ mod test {
         assert_eq!(pts(2), "10,01");
         assert_eq!(pts(3), "210,120,102,201,021,012");
 
-        assert_eq!(super::permutations(6).len(), 6 * 5 * 4 * 3 * 2 * 1);
+        assert_eq!(super::permutations(6).len(), 6 * 5 * 4 * 3 * 2);
     }
 }
