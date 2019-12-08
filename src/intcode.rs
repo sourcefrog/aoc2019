@@ -72,7 +72,7 @@ pub struct Computer {
     mem: Vec<isize>,
     pc: usize,
     input: VecDeque<isize>,
-    output: Vec<isize>,
+    output: VecDeque<isize>,
 }
 
 impl Computer {
@@ -83,7 +83,7 @@ impl Computer {
             mem,
             pc: 0,
             input: VecDeque::new(),
-            output: Vec::new(),
+            output: VecDeque::new(),
         }
     }
 
@@ -100,8 +100,12 @@ impl Computer {
         self.mem[addr] = v;
     }
 
-    pub fn borrow_output(&self) -> &[isize] {
-        &self.output
+    pub fn pop_output(&mut self) -> Option<isize> {
+        self.output.pop_front()
+    }
+
+    pub fn drain_output(&mut self) -> Vec<isize> {
+        self.output.drain(..).collect()
     }
 
     pub fn borrow_mem(&self) -> &[isize] {
@@ -125,7 +129,7 @@ impl Computer {
                 let v = self.input.pop_front().unwrap();
                 self.poke(&a, v);
             }
-            Output(a) => self.output.push(self.peek(&a)),
+            Output(a) => self.output.push_back(self.peek(&a)),
             JumpIfTrue(p1, p2) => {
                 if self.peek(&p1) != 0 {
                     newpc = self.peek(&p2).try_into().unwrap()
@@ -152,6 +156,22 @@ impl Computer {
     /// Run until reaching a Stop instruction.
     pub fn run(&mut self) {
         while self.step() {}
+    }
+
+    /// Run until either stopped, or output is available.
+    ///
+    /// Returns Some(output) if there's output, or None if the
+    /// computer stopped.
+    pub fn run_until_output(&mut self) -> Option<isize> {
+        loop {
+            if self.step() {
+                if let Some(o) = self.output.pop_front() {
+                    return Some(o);
+                }
+            } else {
+                return None;
+            }
+        }
     }
 
     fn peek(&self, p: &Param) -> isize {
@@ -218,7 +238,8 @@ mod test {
     fn output() {
         let mut computer = Computer::from_string("104,1234,99");
         computer.run();
-        assert_eq!(computer.output, &[1234]);
+        assert_eq!(computer.pop_output(), Some(1234));
+        assert_eq!(computer.pop_output(), None);
     }
 
     #[test]

@@ -12,7 +12,7 @@ fn solve_a() -> isize {
     computer.push_input(1);
     computer.run();
     // Output should be all 0s except the last element, which is the answer.
-    let out = computer.borrow_output();
+    let out = computer.drain_output();
     let (confirms, ans) = out.split_at(out.len() - 1);
     assert!(confirms.iter().all(|i| *i == 0));
     ans[0]
@@ -22,8 +22,9 @@ fn solve_b() -> isize {
     let mut c = Computer::new(load_input());
     c.push_input(5);
     c.run();
-    assert_eq!(c.borrow_output().len(), 1);
-    c.borrow_output()[0]
+    let out = c.drain_output();
+    assert_eq!(out.len(), 1);
+    out[0]
 }
 
 fn load_input() -> Vec<isize> {
@@ -73,7 +74,7 @@ mod test {
             c.push_input(*input);
             c.run();
             // assert!(c.input.is_empty());
-            assert_eq!(c.borrow_output(), &[*output]);
+            assert_eq!(c.drain_output(), &[*output]);
         }
     }
 
@@ -92,7 +93,7 @@ mod test {
             let mut c = cbase.clone();
             c.push_input(*input);
             c.run();
-            assert_eq!(c.borrow_output(), &[*output]);
+            assert_eq!(c.drain_output(), &[*output]);
         }
     }
 

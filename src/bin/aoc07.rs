@@ -5,6 +5,7 @@ use mbp_aoc2019::permute::permutations;
 
 pub fn main() {
     println!("07a: {:?}", solve_a().0);
+    println!("07b: {:?}", solve_b().0);
 }
 
 fn solve_a() -> (isize, Vec<usize>) {
@@ -27,6 +28,26 @@ fn solve_type_a(prog: &str) -> (isize, Vec<usize>) {
     (best_pow, best_phases)
 }
 
+fn solve_b() -> (isize, Vec<usize>) {
+    solve_type_b(&load_input())
+}
+
+fn solve_type_b(prog: &str) -> (isize, Vec<usize>) {
+    let prog = parse_string(prog);
+    let mut best_pow = 0;
+    let mut best_phases = Vec::new();
+
+    for phases in permutations(5..=9) {
+        let pow = run_feedback(&phases, &prog);
+        // println!("{:?} => {}", &phases, pow);
+        if pow > best_pow {
+            best_pow = pow;
+            best_phases = phases.clone();
+        }
+    }
+    (best_pow, best_phases)
+}
+
 fn load_input() -> String {
     std::fs::read_to_string("input/input07.txt").unwrap()
 }
@@ -38,7 +59,7 @@ fn run_amp(phase: usize, inpval: isize, prog: &[isize]) -> isize {
     c.push_input(phase.try_into().unwrap());
     c.push_input(inpval);
     c.run();
-    let out = c.borrow_output();
+    let out = c.drain_output();
     assert_eq!(out.len(), 1);
     out[0]
 }
@@ -51,6 +72,36 @@ fn run_pipeline(phases: &[usize], prog: &[isize]) -> isize {
         pow = run_amp(*phase, pow, prog);
     }
     pow
+}
+
+/// Type B problem: run all the amplifiers until they all halt;
+/// then the last output from the final amplifier is the result.
+fn run_feedback(phases: &[usize], prog: &[isize]) -> isize {
+    let mut comps = vec![Computer::new(prog.to_vec()); 5];
+    for i in 0..5 {
+        comps[i].push_input(phases[i].try_into().unwrap())
+    }
+    // push initial input
+    comps[0].push_input(0);
+    let mut stopped = [false; 5];
+    let mut i = 0;
+    let mut e_out = 0;
+    while stopped != [true; 5] {
+        if !stopped[i] {
+            if let Some(out) = comps[i].run_until_output() {
+                comps[(i + 1) % 5].push_input(out);
+                if i == 4 {
+                    e_out = out;
+                }
+            // println!("{} emitted {}", i, out);
+            } else {
+                // println!("{} stopped", i);
+                stopped[i] = true;
+            }
+        }
+        i = (i + 1) % 5;
+    }
+    e_out
 }
 
 #[cfg(test)]
@@ -85,5 +136,30 @@ mod test {
     #[test]
     fn solution_a() {
         assert_eq!(solve_a().0, 118_936);
+    }
+
+    #[test]
+    fn examples_b() {
+        assert_eq!(
+            solve_type_b(
+                "3,26,1001,26,-4,26,3,27,1002,27,2,27,1,27,26,
+                27,4,27,1001,28,-1,28,1005,28,6,99,0,0,5"
+            ),
+            (139629729, vec![9, 8, 7, 6, 5])
+        );
+
+        assert_eq!(
+            solve_type_b(
+                "3,52,1001,52,-5,52,3,53,1,52,56,54,1007,54,5,55,1005,55,26,1001,54,
+                -5,54,1105,1,12,1,53,54,53,1008,54,0,55,1001,55,1,55,2,53,55,53,4,
+                53,1001,56,-1,56,1005,56,6,99,0,0,0,0,10"
+            ),
+            (18216, vec![9, 7, 8, 5, 6])
+        );
+    }
+
+    #[test]
+    fn solution_b() {
+        assert_eq!(solve_b().0, 57_660_948);
     }
 }
