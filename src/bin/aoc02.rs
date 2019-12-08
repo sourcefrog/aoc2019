@@ -145,7 +145,7 @@ mod test {
 
     #[test]
     fn solution_a() {
-        assert_eq!(solve_a(), 3790689);
+        assert_eq!(solve_a(), 3_790_689);
     }
 
     #[test]

@@ -89,7 +89,7 @@ mod test {
 
     #[test]
     fn parse() {
-        assert_eq!(load_input(), (178416, 676461));
+        assert_eq!(load_input(), (178_416, 676_461));
     }
 
     #[test]

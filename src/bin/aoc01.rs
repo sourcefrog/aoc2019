@@ -42,18 +42,18 @@ mod test {
 
     #[test]
     fn solution_a() {
-        assert_eq!(solve_a(), 3334297);
+        assert_eq!(solve_a(), 3_334_297);
     }
 
     #[test]
     fn solution_b() {
-        assert_eq!(solve_b(), 4998565);
+        assert_eq!(solve_b(), 4_998_565);
     }
 
     #[test]
     fn recursion_examples() {
         assert_eq!(recursive_fuel(&[14]), 2);
         assert_eq!(recursive_fuel(&[1969]), 966);
-        assert_eq!(recursive_fuel(&[100756]), 50346);
+        assert_eq!(recursive_fuel(&[100_756]), 50346);
     }
 }
