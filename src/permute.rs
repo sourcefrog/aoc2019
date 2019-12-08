@@ -1,5 +1,5 @@
 /// Generate all permutations of the elements in 0..n.
-fn permutations(n: usize) -> Vec<Vec<usize>> {
+pub fn permutations(n: usize) -> Vec<Vec<usize>> {
     if n == 0 {
         vec![]
     } else if n == 1 {
