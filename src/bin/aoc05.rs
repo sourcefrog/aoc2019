@@ -123,6 +123,10 @@ impl Computer {
         }
     }
 
+    pub fn from_string(s: &str) -> Computer {
+        Computer::new(parse_string(s))
+    }
+
     /// Make these values available for input instructions.
     pub fn push_input(&mut self, input: &[isize]) {
         self.input.extend(input)
@@ -202,11 +206,11 @@ mod test {
     #[test]
     fn examples_from_02() {
         // https://adventofcode.com/2019/day/2
-        let mut computer = Computer::new(parse_string("2,4,4,5,99,0"));
+        let mut computer = Computer::from_string("2,4,4,5,99,0");
         computer.run();
         assert_eq!(computer.mem, parse_string("2,4,4,5,99,9801"));
 
-        let mut computer = Computer::new(parse_string("1,1,1,4,99,5,6,0,99"));
+        let mut computer = Computer::from_string("1,1,1,4,99,5,6,0,99");
         computer.run();
         assert_eq!(computer.mem, parse_string("30,1,1,4,2,5,6,0,99"));
     }
@@ -225,14 +229,14 @@ mod test {
 
     #[test]
     fn output() {
-        let mut computer = Computer::new(parse_string("104,1234,99"));
+        let mut computer = Computer::from_string("104,1234,99");
         computer.run();
         assert_eq!(computer.output, &[1234]);
     }
 
     #[test]
     fn input() {
-        let mut computer = Computer::new(parse_string("3,3,99,9999"));
+        let mut computer = Computer::from_string("3,3,99,9999");
         computer.push_input(&[8888]);
         computer.run();
         assert_eq!(computer.mem, parse_string("3,3,99,8888"));
@@ -242,5 +246,24 @@ mod test {
     #[test]
     fn solution_a() {
         assert_eq!(solve_a(), 15_259_545);
+    }
+
+    #[test]
+    fn examples_b() {
+        // 3,9,8,9,10,9,4,9,99,-1,8 - Using position mode, consider whether the input is equal to 8; output 1 (if it is) or 0 (if it is not).
+        // let mut c = Computer::from_string("3,9,8,9,10,9,4,9,99,-1,8");
+        // c.push_input(&[7]);
+        // c.run();
+        // assert!(c.input.is_empty());
+        // assert_eq!(c.output, &[0]);
+
+        // 3,9,7,9,10,9,4,9,99,-1,8 - Using position mode, consider whether the input is less than 8; output 1 (if it is) or 0 (if it is not).
+        // 3,3,1108,-1,8,3,4,3,99 - Using immediate mode, consider whether the input is equal to 8; output 1 (if it is) or 0 (if it is not).
+        // 3,3,1107,-1,8,3,4,3,99 - Using immediate mode, consider whether the input is less than 8; output 1 (if it is) or 0 (if it is not).
+        // Here are some jump tests that take an input, then output 0 if the input was zero or 1 if the input was non-zero:
+
+        // 3,12,6,12,15,1,13,14,13,4,13,99,-1,0,1,9 (using position mode)
+        // 3,3,1105,-1,9,1101,0,0,12,4,12,99,1 (using immediate mode)
+        // Here's a larger example:
     }
 }
