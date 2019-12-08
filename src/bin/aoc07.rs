@@ -16,7 +16,7 @@ fn solve_type_a(prog: &str) -> (isize, Vec<usize>) {
     let mut best_pow = 0;
     let mut best_phases = Vec::new();
 
-    for phases in permutations(5) {
+    for phases in permutations(0..5) {
         let pow = run_pipeline(&phases, &prog);
         // println!("{:?} => {}", &phases, pow);
         if pow > best_pow {
