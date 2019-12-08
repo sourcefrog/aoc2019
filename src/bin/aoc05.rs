@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 use std::collections::VecDeque;
-use std::convert::TryFrom;
+use std::convert::TryInto;
 
 pub fn main() {
     println!("05a: {}", solve_a());
@@ -39,16 +39,15 @@ enum Param {
 impl Param {
     /// Decode parameter i for the opcode at the start of m.
     fn decode(m: &[isize], i: usize) -> Param {
-        let mode =
-            m[0] / (match i {
-                0 => 100,
-                1 => 1_000,
-                2 => 10_000,
-                _ => panic!(),
-            }) % 10;
+        let expo = match i {
+            0 => 100,
+            1 => 1_000,
+            2 => 10_000,
+            _ => panic!("bad parameter number {} in {}", i, m[0]),
+        };
         let val = m[i + 1];
-        match mode {
-            0 => Param::Position(usize::try_from(val).unwrap()),
+        match (m[0] / expo) % 10 {
+            0 => Param::Position(val.try_into().unwrap()),
             1 => Param::Immediate(val),
             x => panic!("bad mode {:?} in {:?}", x, m[0]),
         }
@@ -58,49 +57,42 @@ impl Param {
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum Insn {
     Stop,
-    Input { a: Param },
-    Output { a: Param },
-    Add { p: [Param; 3] },
-    Mul { p: [Param; 3] },
+    Input(Param),
+    Output(Param),
+    Add(Param, Param, Param),
+    Mul(Param, Param, Param),
+
+    JumpIfTrue(Param, Param),
+    JumpIfFalse(Param, Param),
+    LessThan(Param, Param, Param),
+    Equals(Param, Param, Param),
 }
 use Insn::*;
 
 impl Insn {
-    /// Number of memory cells for the encoded form including the opcode.
-    fn encoded_len(&self) -> usize {
-        match self {
-            Stop => 1,
-            Input { .. } | Output { .. } => 2,
-            Add { .. } | Mul { .. } => 4,
-        }
-    }
-
     /// Decode the instruction at the start of `m`.
-    fn decode(m: &[isize]) -> Insn {
-        match m[0] % 100 {
-            1 => Add {
-                p: [
-                    Param::decode(m, 0),
-                    Param::decode(m, 1),
-                    Param::decode(m, 2),
-                ],
-            },
-            2 => Mul {
-                p: [
-                    Param::decode(m, 0),
-                    Param::decode(m, 1),
-                    Param::decode(m, 2),
-                ],
-            },
-            3 => Input {
-                a: Param::decode(m, 0),
-            },
-            4 => Output {
-                a: Param::decode(m, 0),
-            },
+    ///
+    /// Returns the instruction and the encoded length.
+    fn decode(m: &[isize]) -> (Insn, usize) {
+        let mut param_num = 0;
+        let mut p = || {
+            let p = Param::decode(m, param_num);
+            param_num += 1;
+            p
+        };
+        let insn = match m[0] % 100 {
+            1 => Add(p(), p(), p()),
+            2 => Mul(p(), p(), p()),
+            3 => Input(p()),
+            4 => Output(p()),
+            5 => JumpIfTrue(p(), p()),
+            6 => JumpIfFalse(p(), p()),
+            7 => LessThan(p(), p(), p()),
+            8 => Equals(p(), p(), p()),
             99 => Stop,
             other => panic!("invalid opcode {}", other),
-        }
+        };
+        (insn, param_num + 1)
     }
 }
 
@@ -136,24 +128,40 @@ impl Computer {
     ///
     /// Return false if the computer stopped.
     fn step(&mut self) -> bool {
-        let insn = Insn::decode(&self.mem[self.pc..]);
+        let (insn, insn_len) = Insn::decode(&self.mem[self.pc..]);
+        // By default, next pc will be after this instruction, but the
+        // instruction might jump elsewhere, in which case this is
+        // ignored.
+        let mut newpc = self.pc + insn_len;
         match &insn {
             Stop => return false,
-            Add { p } => self.poke(
-                &p[2],
-                self.peek(&p[0]).checked_add(self.peek(&p[1])).unwrap(),
-            ),
-            Mul { p } => self.poke(
-                &p[2],
-                self.peek(&p[0]).checked_mul(self.peek(&p[1])).unwrap(),
-            ),
-            Input { a } => {
+            Add(p1, p2, p3) => self.poke(&p3, self.peek(&p1).checked_add(self.peek(&p2)).unwrap()),
+            Mul(p1, p2, p3) => self.poke(&p3, self.peek(&p1).checked_mul(self.peek(&p2)).unwrap()),
+            Input(a) => {
                 let v = self.input.pop_front().unwrap();
                 self.poke(&a, v);
             }
-            Output { a } => self.output.push(self.peek(&a)),
+            Output(a) => self.output.push(self.peek(&a)),
+            JumpIfTrue(p1, p2) => {
+                if self.peek(&p1) != 0 {
+                    newpc = self.peek(&p2).try_into().unwrap()
+                }
+            }
+            JumpIfFalse(p1, p2) => {
+                if self.peek(&p1) == 0 {
+                    newpc = self.peek(&p2).try_into().unwrap()
+                }
+            }
+            LessThan(p1, p2, p3) => {
+                let v: isize = (self.peek(&p1) < self.peek(&p2)).into();
+                self.poke(&p3, v);
+            }
+            Equals(p1, p2, p3) => {
+                let v: isize = (self.peek(&p1) == self.peek(&p2)).into();
+                self.poke(&p3, v);
+            }
         }
-        self.pc += insn.encoded_len();
+        self.pc = newpc;
         true
     }
 
@@ -184,14 +192,13 @@ mod test {
     #[test]
     fn decode_example() {
         let mem = parse_string("1002,4,3,4,33");
-        let insn = Insn::decode(&mem);
+        let (insn, len) = Insn::decode(&mem);
         // dbg!(&insn);
         assert_eq!(
             insn,
-            Mul {
-                p: [Param::Position(4), Param::Immediate(3), Param::Position(4),],
-            }
+            Mul(Param::Position(4), Param::Immediate(3), Param::Position(4),)
         );
+        assert_eq!(len, 4);
     }
 
     #[test]
@@ -249,21 +256,87 @@ mod test {
     }
 
     #[test]
+    #[allow(clippy::cognitive_complexity)]
     fn examples_b() {
         // 3,9,8,9,10,9,4,9,99,-1,8 - Using position mode, consider whether the input is equal to 8; output 1 (if it is) or 0 (if it is not).
-        // let mut c = Computer::from_string("3,9,8,9,10,9,4,9,99,-1,8");
-        // c.push_input(&[7]);
-        // c.run();
-        // assert!(c.input.is_empty());
-        // assert_eq!(c.output, &[0]);
+        let mut c = Computer::from_string("3,9,8,9,10,9,4,9,99,-1,8");
+        c.push_input(&[7]);
+        c.run();
+        assert!(c.input.is_empty());
+        assert_eq!(c.output, &[0]);
+
+        let mut c = Computer::from_string("3,9,8,9,10,9,4,9,99,-1,8");
+        c.push_input(&[8]);
+        c.run();
+        assert!(c.input.is_empty());
+        assert_eq!(c.output, &[1]);
 
         // 3,9,7,9,10,9,4,9,99,-1,8 - Using position mode, consider whether the input is less than 8; output 1 (if it is) or 0 (if it is not).
-        // 3,3,1108,-1,8,3,4,3,99 - Using immediate mode, consider whether the input is equal to 8; output 1 (if it is) or 0 (if it is not).
-        // 3,3,1107,-1,8,3,4,3,99 - Using immediate mode, consider whether the input is less than 8; output 1 (if it is) or 0 (if it is not).
-        // Here are some jump tests that take an input, then output 0 if the input was zero or 1 if the input was non-zero:
+        let mut c = Computer::from_string("3,9,7,9,10,9,4,9,99,-1,8");
+        c.push_input(&[9999]);
+        c.run();
+        assert!(c.input.is_empty());
+        assert_eq!(c.output, &[0]);
 
+        for below_val in &[-1234, 0, 7] {
+            let mut c = Computer::from_string("3,9,7,9,10,9,4,9,99,-1,8");
+            c.push_input(&[*below_val]);
+            c.run();
+            assert!(c.input.is_empty());
+            assert_eq!(c.output, &[1]);
+        }
+
+        // 3,3,1108,-1,8,3,4,3,99 - Using immediate mode, consider whether the input is equal to 8; output 1 (if it is) or 0 (if it is not).
+        let mut c = Computer::from_string("3,3,1108,-1,8,3,4,3,99");
+        c.push_input(&[9999]);
+        c.run();
+        assert!(c.input.is_empty());
+        assert_eq!(c.output, &[0]);
+
+        let mut c = Computer::from_string("3,3,1108,-1,8,3,4,3,99");
+        c.push_input(&[8]);
+        c.run();
+        assert!(c.input.is_empty());
+        assert_eq!(c.output, &[1]);
+
+        // 3,3,1107,-1,8,3,4,3,99 - Using immediate mode, consider whether the input is less than 8; output 1 (if it is) or 0 (if it is not).
+        let mut c = Computer::from_string("3,3,1107,-1,8,3,4,3,99");
+        c.push_input(&[8]);
+        c.run();
+        assert!(c.input.is_empty());
+        assert_eq!(c.output, &[0]);
+
+        let mut c = Computer::from_string("3,3,1107,-1,8,3,4,3,99");
+        c.push_input(&[-8]);
+        c.run();
+        assert!(c.input.is_empty());
+        assert_eq!(c.output, &[1]);
+
+        // Here are some jump tests that take an input, then output 0 if the input was zero or 1 if the input was non-zero:
         // 3,12,6,12,15,1,13,14,13,4,13,99,-1,0,1,9 (using position mode)
+        let mut c = Computer::from_string("3,12,6,12,15,1,13,14,13,4,13,99,-1,0,1,9");
+        c.push_input(&[-8]);
+        c.run();
+        assert!(c.input.is_empty());
+        assert_eq!(c.output, &[1]);
+
+        let mut c = Computer::from_string("3,12,6,12,15,1,13,14,13,4,13,99,-1,0,1,9");
+        c.push_input(&[0]);
+        c.run();
+        assert!(c.input.is_empty());
+        assert_eq!(c.output, &[0]);
+
         // 3,3,1105,-1,9,1101,0,0,12,4,12,99,1 (using immediate mode)
-        // Here's a larger example:
+        let mut c = Computer::from_string("3,3,1105,-1,9,1101,0,0,12,4,12,99,1");
+        c.push_input(&[-8]);
+        c.run();
+        assert!(c.input.is_empty());
+        assert_eq!(c.output, &[1]);
+
+        let mut c = Computer::from_string("3,3,1105,-1,9,1101,0,0,12,4,12,99,1");
+        c.push_input(&[0]);
+        c.run();
+        assert!(c.input.is_empty());
+        assert_eq!(c.output, &[0]);
     }
 }
