@@ -4,6 +4,7 @@ use std::fmt;
 
 pub fn main() {
     println!("02a: {}", solve_a());
+    println!("02b: {}", solve_b());
 }
 
 fn solve_a() -> usize {
@@ -11,14 +12,39 @@ fn solve_a() -> usize {
     let mut ic = Intcode::from_string(&load_input());
     ic.mem[1] = 12;
     ic.mem[2] = 2;
-    while ic.step() {}
-    ic.mem[0]
+    ic.run_to_completion()
+}
+
+fn solve_b() -> usize {
+    // Find values a and b, each between 0 and 99 inclusive, stored in
+    // address 1 and 2, that lead to noun final output value of 19690720 in
+    // address 0.
+    //
+    // NOTE: In principle we could cause an infinite loop, and so the
+    // tests might need to cap processing cycles. However this doesn't seem
+    // to actually happen on this input, so I won't worry.
+    let orig_ic = Intcode::from_string(&load_input());
+    let desired = 19_690_720;
+    for noun in 0..=99 {
+        for verb in 0..=99 {
+            // dbg!(noun, verb);
+            let mut ic = orig_ic.clone();
+            ic.mem[1] = noun;
+            ic.mem[2] = verb;
+            let output = ic.run_to_completion();
+            if output == desired {
+                return 100 * noun + verb;
+            }
+        }
+    }
+    unreachable!()
 }
 
 fn load_input() -> String {
     std::fs::read_to_string("input/input02.txt").unwrap()
 }
 
+#[derive(Clone)]
 struct Intcode {
     /// Contents of memory.
     mem: Vec<usize>,
@@ -44,7 +70,7 @@ impl Intcode {
         let a = self.mem[self.mem[self.pc + 1]];
         let b = self.mem[self.mem[self.pc + 2]];
         let c = self.mem[self.pc + 3];
-        dbg!(op, a, b, c, self.pc);
+        // dbg!(op, a, b, c, self.pc);
         self.mem[c] = op(a, b).unwrap();
         self.pc += 4;
         true
@@ -60,6 +86,11 @@ impl Intcode {
                 .collect(),
             pc: 0,
         }
+    }
+
+    pub fn run_to_completion(&mut self) -> usize {
+        while self.step() {}
+        self.mem[0]
     }
 }
 
@@ -115,5 +146,10 @@ mod test {
     #[test]
     fn solution_a() {
         assert_eq!(solve_a(), 3790689);
+    }
+
+    #[test]
+    fn solution_b() {
+        assert_eq!(solve_b(), 6533);
     }
 }
