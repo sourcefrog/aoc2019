@@ -2,10 +2,21 @@
 
 use std::collections::VecDeque;
 use std::convert::TryFrom;
-use std::iter::FromIterator;
-use std::iter::IntoIterator;
 
-pub fn main() {}
+pub fn main() {
+    println!("05a: {}", solve_a());
+}
+
+fn solve_a() -> isize {
+    let mut computer = Computer::new(load_input());
+    computer.push_input(&[1]);
+    computer.run();
+    // Output should be all 0s except the last element, which is the answer.
+    let out = computer.output;
+    let (confirms, ans) = out.split_at(out.len() - 1);
+    assert!(confirms.iter().all(|i| *i == 0));
+    ans[0]
+}
 
 fn load_input() -> Vec<isize> {
     parse_string(&std::fs::read_to_string("input/input05.txt").unwrap())
@@ -103,16 +114,18 @@ struct Computer {
 impl Computer {
     /// Construct a new computer, given an array of memory and a (possibly empty)
     /// stream of inputs made available to Input instructions.
-    fn new<I>(mem: Vec<isize>, input: I) -> Computer
-    where
-        I: IntoIterator<Item = isize>,
-    {
+    pub fn new(mem: Vec<isize>) -> Computer {
         Computer {
             mem,
             pc: 0,
-            input: VecDeque::from_iter(input.into_iter()),
+            input: VecDeque::new(),
             output: Vec::new(),
         }
+    }
+
+    /// Make these values available for input instructions.
+    pub fn push_input(&mut self, input: &[isize]) {
+        self.input.extend(input)
     }
 
     /// Evaluate the next instruction.
@@ -163,7 +176,6 @@ impl Computer {
 #[cfg(test)]
 mod test {
     use super::*;
-    use std::iter::empty;
 
     #[test]
     fn decode_example() {
@@ -181,7 +193,7 @@ mod test {
     #[test]
     fn example_negative() {
         let mem = parse_string("1101,100,-1,4,0");
-        let mut computer = Computer::new(mem, empty());
+        let mut computer = Computer::new(mem);
         assert_eq!(computer.step(), true);
         assert_eq!(computer.mem[4], 99);
         assert_eq!(computer.pc, 4);
@@ -190,11 +202,11 @@ mod test {
     #[test]
     fn examples_from_02() {
         // https://adventofcode.com/2019/day/2
-        let mut computer = Computer::new(parse_string("2,4,4,5,99,0"), empty());
+        let mut computer = Computer::new(parse_string("2,4,4,5,99,0"));
         computer.run();
         assert_eq!(computer.mem, parse_string("2,4,4,5,99,9801"));
 
-        let mut computer = Computer::new(parse_string("1,1,1,4,99,5,6,0,99"), empty());
+        let mut computer = Computer::new(parse_string("1,1,1,4,99,5,6,0,99"));
         computer.run();
         assert_eq!(computer.mem, parse_string("30,1,1,4,2,5,6,0,99"));
     }
@@ -206,15 +218,29 @@ mod test {
         let mut mem = parse_string(&std::fs::read_to_string("input/input02.txt").unwrap());
         mem[1] = 12;
         mem[2] = 2;
-        let mut computer = Computer::new(mem, empty());
+        let mut computer = Computer::new(mem);
         computer.run();
         assert_eq!(computer.mem[0], 3_790_689);
     }
 
     #[test]
     fn output() {
-        let mut computer = Computer::new(parse_string("104,1234,99"), empty());
+        let mut computer = Computer::new(parse_string("104,1234,99"));
         computer.run();
         assert_eq!(computer.output, &[1234]);
+    }
+
+    #[test]
+    fn input() {
+        let mut computer = Computer::new(parse_string("3,3,99,9999"));
+        computer.push_input(&[8888]);
+        computer.run();
+        assert_eq!(computer.mem, parse_string("3,3,99,8888"));
+        assert!(computer.input.is_empty());
+    }
+
+    #[test]
+    fn solution_a() {
+        assert_eq!(solve_a(), 15_259_545);
     }
 }
