@@ -16,16 +16,28 @@ fn parse_string(s: &str) -> Vec<isize> {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-enum ParamMode {
-    Position = 0,
-    Immediate = 1,
+enum Param {
+    Position(usize),
+    Immediate(isize),
 }
-use ParamMode::*;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct Param {
-    mode: ParamMode,
-    v: isize,
+impl Param {
+    /// Decode parameter i for the opcode at the start of m.
+    fn decode(m: &[isize], i: usize) -> Param {
+        let mode =
+            m[0] / (match i {
+                0 => 100,
+                1 => 1_000,
+                2 => 10_000,
+                _ => panic!(),
+            }) % 10;
+        let val = m[i + 1];
+        match mode {
+            0 => Param::Position(usize::try_from(val).unwrap() ),
+            1 => Param::Immediate(val),
+            x => panic!("bad mode {:?} in {:?}", x, m[0]),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -52,13 +64,13 @@ impl Insn {
     fn decode(m: &[isize]) -> Insn {
         match m[0] % 100 {
             1 => Add {
-                p: [param(m, 0), param(m, 1), param(m, 2)],
+                p: [Param::decode(m, 0), Param::decode(m, 1), Param::decode(m, 2)],
             },
             2 => Mul {
-                p: [param(m, 0), param(m, 1), param(m, 2)],
+                p: [Param::decode(m, 0), Param::decode(m, 1), Param::decode(m, 2)],
             },
-            3 => Input { a: param(m, 0) },
-            4 => Output { a: param(m, 0) },
+            3 => Input { a: Param::decode(m, 0) },
+            4 => Output { a: Param::decode(m, 0) },
             99 => Stop,
             other => panic!("invalid opcode {}", other),
         }
@@ -103,36 +115,20 @@ impl Intcode {
     }
 
     fn peek(&self, p: &Param) -> isize {
-        match p.mode {
-            Immediate => p.v,
-            Position => self.mem[usize::try_from(p.v).unwrap()],
+        match p {
+            Param::Immediate(i) => *i,
+            Param::Position(p) => self.mem[*p],
         }
     }
 
     fn poke(&mut self, p: &Param, x: isize) {
-        match p.mode {
-            Immediate => panic!("can't write to immediate parameter"),
-            Position => self.mem[usize::try_from(p.v).unwrap()] = x,
+        match p {
+            Param::Immediate(_i) => panic!("can't write to immediate parameter"),
+            Param::Position(p) => self.mem[*p] = x,
         }
     }
 }
 
-/// Decode parameter i for the opcode at the start of m.
-fn param(m: &[isize], i: usize) -> Param {
-    let mode =
-        m[0] / (match i {
-            0 => 100,
-            1 => 1_000,
-            2 => 10_000,
-            _ => panic!(),
-        }) % 10;
-    let mode = match mode {
-        0 => Position,
-        1 => Immediate,
-        x => panic!("bad mode {:?} in {:?}", x, m[0]),
-    };
-    Param { mode, v: m[i + 1] }
-}
 
 #[cfg(test)]
 mod test {
@@ -147,18 +143,9 @@ mod test {
             insn,
             Mul {
                 p: [
-                    Param {
-                        mode: Position,
-                        v: 4,
-                    },
-                    Param {
-                        mode: Immediate,
-                        v: 3,
-                    },
-                    Param {
-                        mode: Position,
-                        v: 4,
-                    },
+                    Param::Position(4),
+                    Param::Immediate(3),
+                    Param::Position(4),
                 ],
             }
         );
