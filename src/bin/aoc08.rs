@@ -4,6 +4,7 @@ use std::convert::TryInto;
 
 pub fn main() {
     println!("08a: {}", solve_a());
+    println!("08b:\n{}", solve_b());
 }
 
 fn solve_a() -> usize {
@@ -15,6 +16,10 @@ fn solve_a() -> usize {
         .unwrap()
         .1;
     im.count_in_layer(1, least_zeros_layer) * im.count_in_layer(2, least_zeros_layer)
+}
+
+fn solve_b() -> String {
+    Image::from_string(&load_input(), 25, 6).composite()
 }
 
 struct Image {
@@ -53,6 +58,37 @@ impl Image {
     pub fn count_in_layer(&self, d: u8, l: usize) -> usize {
         bytecount::count(self.layer(l), d)
     }
+
+    /// Combine all the layers of this image, from the bottom up, to
+    /// produce a single result, as a text string.
+    pub fn composite(&self) -> String {
+        let sz = self.w * self.h;
+        let mut r = vec![2; sz];
+        for i in (0..(self.l)).rev() {
+            let l = self.layer(i);
+            for j in 0..sz {
+                if l[j] != 2 {
+                    // not transparent
+                    r[j] = l[j]
+                }
+            }
+        }
+
+        let mut s = String::with_capacity(sz + self.h);
+        let mut i = 0;
+        for _y in 0..(self.h) {
+            for _x in 0..(self.w) {
+                s.push(match r[i] {
+                    0 => ' ',
+                    1 => '*',
+                    _ => '.',
+                });
+                i += 1;
+            }
+            s.push('\n');
+        }
+        s
+    }
 }
 
 fn load_input() -> String {
@@ -66,5 +102,11 @@ mod test {
     #[test]
     fn solution_a() {
         assert_eq!(solve_a(), 2032);
+    }
+
+    #[test]
+    fn solution_b() {
+        solve_b();
+        // No assertion about the content; let's just make sure it completes.
     }
 }
