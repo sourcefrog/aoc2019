@@ -1,3 +1,5 @@
+extern crate bytecount;
+
 use std::convert::TryInto;
 
 pub fn main() {
@@ -49,7 +51,7 @@ impl Image {
 
     /// Return the count of digits equal to `d` within layer `l`.
     pub fn count_in_layer(&self, d: u8, l: usize) -> usize {
-        self.layer(l).iter().filter(|i| **i == d).count()
+        bytecount::count(self.layer(l), d)
     }
 }
 

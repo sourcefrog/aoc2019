@@ -9,3 +9,4 @@ description = "Solutions to https://adventofcode.com/2019"
 
 [dependencies]
 itertools = "0.8.2"
+bytecount = "0.6.0"
