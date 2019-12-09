@@ -64,13 +64,12 @@ impl Image {
     pub fn composite(&self) -> String {
         let sz = self.w * self.h;
         let mut r = vec![2; sz];
-        for i in (0..(self.l)).rev() {
-            let l = self.layer(i);
-            for j in 0..sz {
-                if l[j] != 2 {
-                    // not transparent
-                    r[j] = l[j]
-                }
+        // Neat little hack here: we can just walk all the values in order,
+        // applying them to the corresponding modulus address, if they are not
+        // transparent.
+        for (i, v) in self.digits.iter().enumerate().rev() {
+            if *v != 2 {
+                r[i % sz] = *v
             }
         }
 
