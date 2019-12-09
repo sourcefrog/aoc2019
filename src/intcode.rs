@@ -1,10 +1,12 @@
 use std::collections::VecDeque;
+use std::convert::TryFrom;
 use std::convert::TryInto;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Param {
     Position(usize),
     Immediate(isize),
+    Relative(isize),
 }
 
 impl Param {
@@ -20,6 +22,7 @@ impl Param {
         match (m[0] / expo) % 10 {
             0 => Param::Position(val.try_into().unwrap()),
             1 => Param::Immediate(val),
+            2 => Param::Relative(val),
             x => panic!("bad mode {:?} in {:?}", x, m[0]),
         }
     }
@@ -37,6 +40,8 @@ pub enum Insn {
     JumpIfFalse(Param, Param),
     LessThan(Param, Param, Param),
     Equals(Param, Param, Param),
+
+    AdjRelBase(Param),
 }
 use Insn::*;
 
@@ -60,6 +65,7 @@ impl Insn {
             6 => JumpIfFalse(p(), p()),
             7 => LessThan(p(), p(), p()),
             8 => Equals(p(), p(), p()),
+            9 => AdjRelBase(p()),
             99 => Stop,
             other => panic!("invalid opcode {}", other),
         };
@@ -67,28 +73,34 @@ impl Insn {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Computer {
     mem: Vec<isize>,
     pc: usize,
     input: VecDeque<isize>,
     output: VecDeque<isize>,
+    relbase: isize,
 }
 
 impl Computer {
     /// Construct a new computer, given an array of memory and a (possibly empty)
     /// stream of inputs made available to Input instructions.
-    pub fn new(mem: Vec<isize>) -> Computer {
+    pub fn new(prog: &[isize]) -> Computer {
         Computer {
-            mem,
+            mem: prog.to_vec(),
             pc: 0,
             input: VecDeque::new(),
             output: VecDeque::new(),
+            relbase: 0,
         }
     }
 
     pub fn from_string(s: &str) -> Computer {
-        Computer::new(parse_string(s))
+        Computer::new(&parse_string(s))
+    }
+
+    pub fn from_file(path: &str) -> Computer {
+        Computer::from_string(&std::fs::read_to_string(path).unwrap())
     }
 
     /// Make a value available for input instructions.
@@ -148,6 +160,9 @@ impl Computer {
                 let v: isize = (self.peek(&p1) == self.peek(&p2)).into();
                 self.poke(&p3, v);
             }
+            AdjRelBase(p) => {
+                self.relbase = self.relbase.checked_add(self.peek(&p)).unwrap();
+            }
         }
         self.pc = newpc;
         true
@@ -175,17 +190,33 @@ impl Computer {
     }
 
     fn peek(&self, p: &Param) -> isize {
-        match p {
-            Param::Immediate(i) => *i,
-            Param::Position(p) => self.mem[*p],
+        let addr = match p {
+            Param::Immediate(i) => return *i,
+            Param::Position(p) => *p,
+            Param::Relative(p) => usize::try_from(self.relbase.checked_add(*p).unwrap()).unwrap(),
+        };
+        if addr >= self.mem.len() {
+            0
+        } else {
+            self.mem[addr]
         }
     }
 
     fn poke(&mut self, p: &Param, x: isize) {
-        match p {
+        let addr = match p {
             Param::Immediate(_i) => panic!("can't write to immediate parameter"),
-            Param::Position(p) => self.mem[*p] = x,
+            Param::Position(p) => *p,
+            Param::Relative(p) => self.relbase.checked_add(*p).unwrap().try_into().unwrap(),
+        };
+        if addr >= self.mem.len() {
+            self.mem.resize(addr + 1, 0)
         }
+        self.mem[addr] = x
+    }
+
+    #[cfg(test)]
+    fn assert_mem_starts_with(&self, b: &[isize]) {
+        assert_eq!(b, &self.mem[..b.len()]);
     }
 }
 
@@ -216,7 +247,7 @@ mod test {
     #[test]
     fn example_negative() {
         let mem = parse_string("1101,100,-1,4,0");
-        let mut computer = Computer::new(mem);
+        let mut computer = Computer::new(&mem);
         assert_eq!(computer.step(), true);
         assert_eq!(computer.mem[4], 99);
         assert_eq!(computer.pc, 4);
@@ -227,11 +258,11 @@ mod test {
         // https://adventofcode.com/2019/day/2
         let mut computer = Computer::from_string("2,4,4,5,99,0");
         computer.run();
-        assert_eq!(computer.mem, parse_string("2,4,4,5,99,9801"));
+        computer.assert_mem_starts_with(&parse_string("2,4,4,5,99,9801"));
 
         let mut computer = Computer::from_string("1,1,1,4,99,5,6,0,99");
         computer.run();
-        assert_eq!(computer.mem, parse_string("30,1,1,4,2,5,6,0,99"));
+        computer.assert_mem_starts_with(&parse_string("30,1,1,4,2,5,6,0,99"));
     }
 
     #[test]
@@ -271,18 +302,36 @@ mod test {
         let mut ic = Computer::from_string("1,0,0,0,99");
         assert_eq!(ic.step(), true);
         assert_eq!(ic.step(), false);
-        assert_eq!(ic.mem, parse_string("2,0,0,0,99"));
+        ic.assert_mem_starts_with(&parse_string("2,0,0,0,99"));
 
         let mut ic = Computer::from_string("2,3,0,3,99");
         ic.run();
-        assert_eq!(ic.mem, parse_string("2,3,0,6,99"));
+        ic.assert_mem_starts_with(&parse_string("2,3,0,6,99"));
 
         let mut ic = Computer::from_string("2,4,4,5,99,0");
         ic.run();
-        assert_eq!(ic.mem, parse_string("2,4,4,5,99,9801"));
+        ic.assert_mem_starts_with(&parse_string("2,4,4,5,99,9801"));
 
         let mut ic = Computer::from_string("1,1,1,4,99,5,6,0,99");
         ic.run();
-        assert_eq!(ic.mem, parse_string("30,1,1,4,2,5,6,0,99"));
+        ic.assert_mem_starts_with(&parse_string("30,1,1,4,2,5,6,0,99"));
+    }
+
+    #[test]
+    fn examples_from_09() {
+        // Produces a copy of itself.
+        let prog = parse_string("109,1,204,-1,1001,100,1,100,1008,100,16,101,1006,101,0,99");
+        let mut c = Computer::new(&prog);
+        c.run();
+        assert_eq!(&c.drain_output(), &prog);
+
+        // 1102,34915192,34915192,7,4,7,99,0 should output a 16-digit number.
+        let mut c = Computer::from_string("1102,34915192,34915192,7,4,7,99,0");
+        c.run();
+        assert_eq!(c.drain_output(), &[1219070632396864]);
+
+        let mut c = Computer::from_string("104,1125899906842624,99");
+        c.run();
+        assert_eq!(c.drain_output(), &[1125899906842624]);
     }
 }

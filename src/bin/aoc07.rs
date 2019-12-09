@@ -55,7 +55,7 @@ fn load_input() -> String {
 /// Simulate a single amplifier, given the phase setting, input value, and
 /// program. Returns the output.
 fn run_amp(phase: usize, inpval: isize, prog: &[isize]) -> isize {
-    let mut c = Computer::new(prog.to_vec());
+    let mut c = Computer::new(prog);
     c.push_input(phase.try_into().unwrap());
     c.push_input(inpval);
     c.run();
@@ -77,7 +77,7 @@ fn run_pipeline(phases: &[usize], prog: &[isize]) -> isize {
 /// Type B problem: run all the amplifiers until they all halt;
 /// then the last output from the final amplifier is the result.
 fn run_feedback(phases: &[usize], prog: &[isize]) -> isize {
-    let mut comps = vec![Computer::new(prog.to_vec()); 5];
+    let mut comps = vec![Computer::new(prog); 5];
     for i in 0..5 {
         comps[i].push_input(phases[i].try_into().unwrap())
     }

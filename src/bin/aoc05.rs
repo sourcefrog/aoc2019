@@ -8,7 +8,7 @@ pub fn main() {
 }
 
 fn solve_a() -> isize {
-    let mut computer = Computer::new(load_input());
+    let mut computer = Computer::new(&load_input());
     computer.push_input(1);
     computer.run();
     // Output should be all 0s except the last element, which is the answer.
@@ -19,7 +19,7 @@ fn solve_a() -> isize {
 }
 
 fn solve_b() -> isize {
-    let mut c = Computer::new(load_input());
+    let mut c = Computer::new(&load_input());
     c.push_input(5);
     c.run();
     let out = c.drain_output();
@@ -42,7 +42,7 @@ mod test {
         let mut mem = parse_string(&std::fs::read_to_string("input/input02.txt").unwrap());
         mem[1] = 12;
         mem[2] = 2;
-        let mut computer = Computer::new(mem);
+        let mut computer = Computer::new(&mem);
         computer.run();
         assert_eq!(computer.borrow_mem()[0], 3_790_689);
     }
