@@ -108,6 +108,10 @@ impl Computer {
         self.input.push_back(input)
     }
 
+    pub fn clear_input(&mut self) {
+        self.input.clear()
+    }
+
     pub fn poke_at(&mut self, addr: usize, v: isize) {
         self.mem[addr] = v;
     }
