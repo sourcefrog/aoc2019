@@ -1,6 +1,6 @@
 use mbp_aoc2019::intcode::Computer;
 
-pub fn main(){
+pub fn main() {
     println!("09a: {}", solve_a());
     println!("09b: {}", solve_b());
 }
@@ -29,7 +29,7 @@ mod test {
 
     #[test]
     fn solution_a() {
-        assert_eq!(solve_a(), 2789104029);
+        assert_eq!(solve_a(), 2_789_104_029);
     }
 
     #[test]
