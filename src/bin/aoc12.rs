@@ -1,10 +1,14 @@
+// How can we know if it will repeat and when...?
+
 #![allow(dead_code)]
 
 use std::cmp::Ordering;
+use std::collections::{BTreeSet, HashSet};
 use std::fmt;
 
 pub fn main() {
     dbg!(solve_a());
+    dbg!(solve_b());
 }
 
 fn solve_a() -> isize {
@@ -15,6 +19,34 @@ fn solve_a() -> isize {
     total_energy(&ms)
 }
 
+fn solve_b() {
+    let mut ms = make_moons(&[(4, 1, 1), (11, -18, -1), (-2, -10, -4), (-7, -2, 14)]);
+    // let mut prev_energy = HashSet::new();
+    let mut prev_moons: BTreeSet<Vec<Moon>> = BTreeSet::new();
+    for i in 0..1_000_000_000 {
+        if i % 1_000_000 == 0 {
+            println!("{}", i);
+        }
+        step(&mut ms);
+        if !prev_moons.insert(ms.clone()) {
+            println!("found repeat!");
+            break;
+        }
+        // let e = total_energy(&ms);
+        // if e == 774 {
+        //     println!("step {}", i);
+        //     for m in &ms {
+        //         println!("{}", m);
+        //     }
+        // }
+        // if !prev_energy.insert(e) {
+        //     println!("found repeat of {}?", e);
+        //     break;
+        // }
+    }
+}
+
+#[derive(Ord, PartialOrd, Eq, PartialEq, Clone)]
 struct Moon {
     p: (isize, isize, isize),
     v: (isize, isize, isize),
