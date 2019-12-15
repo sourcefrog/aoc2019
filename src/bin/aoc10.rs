@@ -29,6 +29,7 @@ fn solve_b() -> isize {
     solve_type_b(&std::fs::read_to_string("input/input10.txt").unwrap())
 }
 
+#[allow(clippy::many_single_char_names)]
 fn solve_type_b(s: &str) -> isize {
     let asts = parse(s);
     let obs = asts
