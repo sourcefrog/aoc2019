@@ -80,6 +80,8 @@ pub struct Computer {
     input: VecDeque<isize>,
     output: VecDeque<isize>,
     relbase: isize,
+    wants_input: bool,
+    halt: bool,
 }
 
 impl Computer {
@@ -92,6 +94,8 @@ impl Computer {
             input: VecDeque::new(),
             output: VecDeque::new(),
             relbase: 0,
+            wants_input: false,
+            halt: false,
         }
     }
 
@@ -137,13 +141,21 @@ impl Computer {
         // instruction might jump elsewhere, in which case this is
         // ignored.
         let mut newpc = self.pc + insn_len;
+        self.wants_input = false;
         match &insn {
-            Stop => return false,
+            Stop => {
+                self.halt = true;
+                return false;
+            }
             Add(p1, p2, p3) => self.poke(&p3, self.peek(&p1).checked_add(self.peek(&p2)).unwrap()),
             Mul(p1, p2, p3) => self.poke(&p3, self.peek(&p1).checked_mul(self.peek(&p2)).unwrap()),
             Input(a) => {
-                let v = self.input.pop_front().unwrap();
-                self.poke(&a, v);
+                if let Some(v) = self.input.pop_front() {
+                    self.poke(&a, v);
+                } else {
+                    self.wants_input = true;
+                    return false;
+                }
             }
             Output(a) => self.output.push_back(self.peek(&a)),
             JumpIfTrue(p1, p2) => {
