@@ -106,6 +106,14 @@ impl Computer {
     pub fn from_file(path: &str) -> Computer {
         Computer::from_string(&std::fs::read_to_string(path).unwrap())
     }
+    
+    pub fn wants_input(&self) -> bool {
+        self.wants_input
+    }
+
+    pub fn is_halted(&self) -> bool {
+        self.halt
+    }
 
     /// Make a value available for input instructions.
     pub fn push_input(&mut self, input: isize) {
@@ -128,6 +136,11 @@ impl Computer {
         self.output.drain(..).collect()
     }
 
+    // Length of pending output
+    pub fn output_len(&self) -> usize {
+        self.output.len()
+    }
+
     pub fn borrow_mem(&self) -> &[isize] {
         &self.mem
     }
@@ -142,6 +155,7 @@ impl Computer {
         // ignored.
         let mut newpc = self.pc + insn_len;
         self.wants_input = false;
+            // println!("{:?}", &insn);
         match &insn {
             Stop => {
                 self.halt = true;
@@ -154,6 +168,8 @@ impl Computer {
                     self.poke(&a, v);
                 } else {
                     self.wants_input = true;
+                    // Return without updating PC, so this will be tried again, hopefully
+                    // after there's input.
                     return false;
                 }
             }
