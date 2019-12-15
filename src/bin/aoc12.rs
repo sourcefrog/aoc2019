@@ -1,10 +1,15 @@
-// How can we know if it will repeat and when...?
-
-#![allow(dead_code)]
+extern crate num_integer;
 
 use std::cmp::Ordering;
-use std::collections::{BTreeSet, HashSet};
 use std::fmt;
+
+use num_integer::Integer;
+
+#[derive(Ord, PartialOrd, Eq, PartialEq, Clone, Debug)]
+struct Moon {
+    pos: [isize; 3],
+    vel: [isize; 3],
+}
 
 pub fn main() {
     dbg!(solve_a());
@@ -12,54 +17,53 @@ pub fn main() {
 }
 
 fn solve_a() -> isize {
-    let mut ms = make_moons(&[(4, 1, 1), (11, -18, -1), (-2, -10, -4), (-7, -2, 14)]);
+    let mut ms = make_moons(&[[4, 1, 1], [11, -18, -1], [-2, -10, -4], [-7, -2, 14]]);
     for _ in 0..1000 {
         step(&mut ms);
     }
     total_energy(&ms)
 }
 
-fn solve_b() {
-    let mut ms = make_moons(&[(4, 1, 1), (11, -18, -1), (-2, -10, -4), (-7, -2, 14)]);
-    // let mut prev_energy = HashSet::new();
-    let mut prev_moons: BTreeSet<Vec<Moon>> = BTreeSet::new();
-    for i in 0..1_000_000_000 {
-        if i % 1_000_000 == 0 {
-            println!("{}", i);
-        }
+fn solve_b() -> usize {
+    let mut ms = make_moons(&[[4, 1, 1], [11, -18, -1], [-2, -10, -4], [-7, -2, 14]]);
+    let orig_ms = ms.clone();
+    // Length of cycles in each of the three dimensions.
+    // Cycle occurs when, in dimension d, all moons have velocity 0 and the same
+    // position as the initial position.
+    let mut cycles = [None; 3];
+    for i in 1.. {
+        // println!("i={}", i);
         step(&mut ms);
-        if !prev_moons.insert(ms.clone()) {
-            println!("found repeat!");
+        for (d, cyc) in cycles.iter_mut().enumerate() {
+            if cyc.is_none()
+                && ms
+                    .iter()
+                    .enumerate()
+                    .all(|(i, m)| m.vel[d] == 0 && m.pos[d] == orig_ms[i].pos[d])
+            {
+                // println!("Found cycle length {} in d={} at {:?}", i, d, &ms);
+                *cyc = Some(i);
+            }
+        }
+        if cycles.iter().all(Option::is_some) {
             break;
         }
-        // let e = total_energy(&ms);
-        // if e == 774 {
-        //     println!("step {}", i);
-        //     for m in &ms {
-        //         println!("{}", m);
-        //     }
-        // }
-        // if !prev_energy.insert(e) {
-        //     println!("found repeat of {}?", e);
-        //     break;
-        // }
     }
-}
-
-#[derive(Ord, PartialOrd, Eq, PartialEq, Clone)]
-struct Moon {
-    p: (isize, isize, isize),
-    v: (isize, isize, isize),
+    // dbg!(cycles);
+    cycles.iter().fold(1usize, |a, b| a.lcm(&b.unwrap()))
 }
 
 impl Moon {
-    fn new(p: (isize, isize, isize)) -> Moon {
-        Moon { p, v: (0, 0, 0) }
+    fn new(pos: [isize; 3]) -> Moon {
+        Moon {
+            pos,
+            vel: [0, 0, 0],
+        }
     }
 
     fn energy(&self) -> isize {
-        (self.p.0.abs() + self.p.1.abs() + self.p.2.abs())
-            * (self.v.0.abs() + self.v.1.abs() + self.v.2.abs())
+        self.pos.iter().cloned().map(isize::abs).sum::<isize>()
+            * self.vel.iter().cloned().map(isize::abs).sum::<isize>()
     }
 }
 
@@ -68,7 +72,7 @@ impl fmt::Display for Moon {
         write!(
             f,
             "pos=<x={:3}, y={:3}, z={:3}>, vel=<x={:3}, y={:3}, z={:3}>",
-            self.p.0, self.p.1, self.p.2, self.v.0, self.v.1, self.v.2
+            self.pos[0], self.pos[1], self.pos[2], self.vel[0], self.vel[1], self.vel[2]
         )
     }
 }
@@ -87,25 +91,25 @@ fn step(ms: &mut [Moon]) {
     for i in 0..ms.len() {
         for j in 0..ms.len() {
             if i != j {
-                let pi = ms[i].p;
+                let pi = ms[i].pos;
                 let mut mj = &mut ms[j];
 
-                mj.v.0 += ordering_to_int(pi.0.cmp(&mj.p.0));
-                mj.v.1 += ordering_to_int(pi.1.cmp(&mj.p.1));
-                mj.v.2 += ordering_to_int(pi.2.cmp(&mj.p.2));
+                mj.vel[0] += ordering_to_int(pi[0].cmp(&mj.pos[0]));
+                mj.vel[1] += ordering_to_int(pi[1].cmp(&mj.pos[1]));
+                mj.vel[2] += ordering_to_int(pi[2].cmp(&mj.pos[2]));
             }
         }
     }
 
     // velocity
     for m in ms.iter_mut() {
-        m.p.0 += m.v.0;
-        m.p.1 += m.v.1;
-        m.p.2 += m.v.2;
+        m.pos[0] += m.vel[0];
+        m.pos[1] += m.vel[1];
+        m.pos[2] += m.vel[2];
     }
 }
 
-fn make_moons(ms: &[(isize, isize, isize)]) -> Vec<Moon> {
+fn make_moons(ms: &[[isize; 3]]) -> Vec<Moon> {
     ms.iter().cloned().map(Moon::new).collect()
 }
 
@@ -120,21 +124,21 @@ mod test {
     #[test]
 
     fn example() {
-        let mut ms = make_moons(&[(-1, 0, 2), (2, -10, -7), (4, -8, 8), (3, 5, -1)]);
+        let mut ms = make_moons(&[[-1, 0, 2], [2, -10, -7], [4, -8, 8], [3, 5, -1]]);
 
         // after 1 step
         step(&mut ms);
-        assert_eq!(ms[0].p, (2, -1, 1));
-        assert_eq!(ms[0].v, (3, -1, -1));
+        assert_eq!(ms[0].pos, [2, -1, 1]);
+        assert_eq!(ms[0].vel, [3, -1, -1]);
 
-        assert_eq!(ms[1].v, (1, 3, 3));
-        assert_eq!(ms[1].p, (3, -7, -4));
+        assert_eq!(ms[1].vel, [1, 3, 3]);
+        assert_eq!(ms[1].pos, [3, -7, -4]);
 
-        assert_eq!(ms[2].v, (-3, 1, -3));
-        assert_eq!(ms[2].p, (1, -7, 5));
+        assert_eq!(ms[2].vel, [-3, 1, -3]);
+        assert_eq!(ms[2].pos, [1, -7, 5]);
 
-        assert_eq!(ms[3].p, (2, 2, 0));
-        assert_eq!(ms[3].v, (-1, -3, 1));
+        assert_eq!(ms[3].pos, [2, 2, 0]);
+        assert_eq!(ms[3].vel, [-1, -3, 1]);
 
         for _ in 2..=10 {
             step(&mut ms);
@@ -145,10 +149,20 @@ mod test {
 
     #[test]
     fn example_a2() {
-        let mut ms = make_moons(&[(-8, -10, 0), (5, 5, 10), (2, -7, 3), (9, -8, -3)]);
+        let mut ms = make_moons(&[[-8, -10, 0], [5, 5, 10], [2, -7, 3], [9, -8, -3]]);
         for _i in 1..=100 {
             step(&mut ms);
         }
         assert_eq!(total_energy(&ms), 1940);
+    }
+
+    #[test]
+    fn solution_a() {
+        assert_eq!(solve_a(), 9493);
+    }
+
+    #[test]
+    fn solution_b() {
+        assert_eq!(solve_b(), 326_365_108_375_488);
     }
 }
