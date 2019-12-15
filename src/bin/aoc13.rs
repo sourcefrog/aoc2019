@@ -1,9 +1,48 @@
+#![allow(dead_code)]
+
+// Here's my approach to part B, working out the final score.
+//
+// The only thing we control is the position of the paddle, by giving
+// incremental {-1, 0, +1} inputs to move it each time the game stops
+// to wait for input.
+//
+// I assume the game is fairly deterministic (there is no randomness source)
+// and doesn't change in response to paddle input other than moving the paddle
+// (and therefore where the ball bounces.)o
+//
+// We can tell what the score is, where the ball is, and where the paddle
+// is. We can tell whether we lost because the ball will go below
+// the paddle. (And perhaps the game will stop? Or perhaps it lets you
+// keep futilely moving the paddle?)
+//
+// We can tell if we won because there's no blocks left, and, again, perhaps
+// the game will stop.
+//
+// So the approach is: remember all previous game states, giving effectively
+// a save-point at every input. Try to play the game.
+// If we miss the ball with the paddle, rewind to that state, remember the
+// goal paddle location, and rewind however many input steps are necessary
+// to get to that position in time.  Keep trying this until there are no
+// blocks left, and we've won.
+//
+// This avoids needing to predict where the ball will bounce.
+//
+// An alternative approach, and perhaps simpler, approach, would be to keep
+// the paddle always underneath the ball. But I'm concerned that we would
+// actually need to lead the ball with the paddle (if it moves diagonally
+// as it reaches the paddle) and that might be complicated, or we might be
+// left behind. But, perhaps it's simpler to start with?
+
+extern crate console;
+
 use std::collections::{BTreeMap, BTreeSet};
+
+use console::Term;
 
 use mbp_aoc2019::intcode::Computer;
 
 pub fn main() {
-    println!("13a: {}", solve_a());
+    // println!("13a: {}", solve_a());
     println!("13b: {}", solve_b());
 }
 
@@ -14,7 +53,33 @@ fn solve_a() -> usize {
 }
 
 fn solve_b() -> isize {
-    Game::load().play()
+    let mut g = Game::load();
+
+    let mut console = Term::stdout();
+
+    // Initial dry run to draw the screen
+    // g.dry_run();
+
+    // Insert a coin :D
+    g.c.poke_at(0, 2);
+    // Run - will wait for input.
+    loop {
+        g.c.run();
+        if g.c.wants_input() {
+            println!("push 0");
+            g.c.push_input(0);
+        } 
+        if g.c.output_len() > 0 {
+            g.consume_output();
+            console.clear_screen().unwrap();
+            g.draw(&mut console).unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(500));
+        } 
+        if g.c.is_halted() {
+            println!("halted: score {}", g.score);
+            return g.score
+        }
+    }
 }
 
 struct Game {
@@ -47,7 +112,7 @@ impl Game {
     fn dry_run(&mut self) {
         self.c.run();
         self.consume_output();
-        println!("{}", self.draw());
+        self.draw(&mut std::io::stdout()).unwrap();
     }
 
     fn consume_output(&mut self) {
@@ -76,10 +141,12 @@ impl Game {
         }
     }
 
-    fn draw(&self) -> String {
+    fn draw(&self, w: &mut dyn std::io::Write) -> std::io::Result<()> {
+        write!(w, "Score: {}\n", self.score)?;
         let mut s = String::new();
-        s.push_str(&format!("Score: {}\n", self.score));
         let ((xmin, xmax), (ymin, ymax)) = self.bounds();
+        assert_eq!(ymin, 0);
+        assert_eq!(xmin, 0);
         for y in ymin..=ymax {
             for x in xmin..=xmax {
                 if let Some(t) = self.m.get(&(x, y)) {
@@ -88,14 +155,14 @@ impl Game {
                         1 => '#',
                         2 => '.',
                         3 => '_',
-                        4 => '0',
+                        4 => '@',
                         _ => panic!(),
                     });
                 }
             }
             s.push('\n');
         }
-        s
+        w.write_all(s.as_bytes())
     }
 
     fn bounds(&self) -> ((isize, isize), (isize, isize)) {
@@ -111,27 +178,6 @@ impl Game {
         )
     }
 
-    // To play the game: the only thing we control is the position of the
-    // paddle, and it seems like all we can do is put that in the position
-    // the ball will next come down to the bottom line.
-    //
-    // The field is wide enough that it looks like we can't just wait until
-    // the ball is moving down and then move the paddle, because it's much
-    // wider than it is deep...
-    //
-    // Although actually, rather than simulating the game, I wonder if
-    // we can just peek and work out what value will be output?
-    //
-    // The (probably too obvious) guess would be it's one point per block...
-    // But it's not.
-    //
-    // Q: Do we need to predict where the ball will bounce, projecting it through
-    // all collisions? I wonder how predictable it is...
-    //
-    // Q: It seems we don't know which direction the ball is initally travelling.
-    //
-    // This seems to also actually require teaching the computer to run until it
-    // wants input and then stop.
     fn play(&mut self) -> isize {
         self.c.poke_at(0, 2);
         while !self.blocks.is_empty() {}
