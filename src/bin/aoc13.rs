@@ -1,38 +1,3 @@
-#![allow(dead_code)]
-
-// Here's my approach to part B, working out the final score.
-//
-// The only thing we control is the position of the paddle, by giving
-// incremental {-1, 0, +1} inputs to move it each time the game stops
-// to wait for input.
-//
-// I assume the game is fairly deterministic (there is no randomness source)
-// and doesn't change in response to paddle input other than moving the paddle
-// (and therefore where the ball bounces.)o
-//
-// We can tell what the score is, where the ball is, and where the paddle
-// is. We can tell whether we lost because the ball will go below
-// the paddle. (And perhaps the game will stop? Or perhaps it lets you
-// keep futilely moving the paddle?)
-//
-// We can tell if we won because there's no blocks left, and, again, perhaps
-// the game will stop.
-//
-// So the approach is: remember all previous game states, giving effectively
-// a save-point at every input. Try to play the game.
-// If we miss the ball with the paddle, rewind to that state, remember the
-// goal paddle location, and rewind however many input steps are necessary
-// to get to that position in time.  Keep trying this until there are no
-// blocks left, and we've won.
-//
-// This avoids needing to predict where the ball will bounce.
-//
-// An alternative approach, and perhaps simpler, approach, would be to keep
-// the paddle always underneath the ball. But I'm concerned that we would
-// actually need to lead the ball with the paddle (if it moves diagonally
-// as it reaches the paddle) and that might be complicated, or we might be
-// left behind. But, perhaps it's simpler to start with?
-
 extern crate console;
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -40,44 +5,55 @@ use std::collections::{BTreeMap, BTreeSet};
 use console::Term;
 
 use mbp_aoc2019::intcode::Computer;
+use mbp_aoc2019::ordering_to_int;
 
 pub fn main() {
-    // println!("13a: {}", solve_a());
-    println!("13b: {}", solve_b());
+    let b = solve_b(true);
+    println!("13a: {}", solve_a());
+    println!("13b: {}", b);
 }
 
 fn solve_a() -> usize {
     let mut g = Game::load();
-    g.dry_run();
+    g.c.run();
+    g.consume_output();
     g.m.values().filter(|t| **t == 2).count()
 }
 
-fn solve_b() -> isize {
+fn solve_b(draw: bool) -> isize {
+    // Playing the game successfully actually turns out to be really
+    // simple: just keep the paddle under the balls.
+    //
+    // (I was contemplating something more complicated where we
+    // remember previous computer states, essentially as save-points,
+    // and rewind if we get something wrong. But it turns out to be
+    // unnecessary.)
+
     let mut g = Game::load();
+    let console = &mut Term::stdout();
 
-    let mut console = Term::stdout();
-
-    // Initial dry run to draw the screen
-    // g.dry_run();
-
-    // Insert a coin :D
-    g.c.poke_at(0, 2);
-    // Run - will wait for input.
+    g.c.poke_at(0, 2); // Insert a coin :D
+    if draw {
+        console.clear_screen().unwrap();
+    }
     loop {
         g.c.run();
-        if g.c.wants_input() {
-            println!("push 0");
-            g.c.push_input(0);
-        } 
         if g.c.output_len() > 0 {
             g.consume_output();
-            console.clear_screen().unwrap();
-            g.draw(&mut console).unwrap();
-        std::thread::sleep(std::time::Duration::from_millis(500));
-        } 
+            if draw {
+                console.move_cursor_to(0, 0).unwrap();
+                g.draw(console).unwrap();
+                // std::thread::sleep(std::time::Duration::from_millis(500));
+            }
+        }
+        if g.c.wants_input() {
+            // Try to keep the paddle under the ball.
+            g.c.push_input(ordering_to_int(
+                g.ball_pos.unwrap().0.cmp(&g.paddle_pos.unwrap().0),
+            ));
+        }
         if g.c.is_halted() {
-            println!("halted: score {}", g.score);
-            return g.score
+            return g.score;
         }
     }
 }
@@ -90,13 +66,16 @@ struct Game {
     // Positions of remaining blocks
     blocks: BTreeSet<Point>,
     // Position of paddle
-    paddle: Option<Point>,
+    paddle_pos: Option<Point>,
+    ball_pos: Option<Point>,
 }
 
 type Point = (isize, isize);
 
+const WALL: isize = 1;
 const BLOCK: isize = 2;
 const PADDLE: isize = 3;
+const BALL: isize = 4;
 
 impl Game {
     fn load() -> Game {
@@ -105,14 +84,9 @@ impl Game {
             m: BTreeMap::new(),
             score: -1,
             blocks: BTreeSet::new(),
-            paddle: None,
+            paddle_pos: None,
+            ball_pos: None,
         }
-    }
-
-    fn dry_run(&mut self) {
-        self.c.run();
-        self.consume_output();
-        self.draw(&mut std::io::stdout()).unwrap();
     }
 
     fn consume_output(&mut self) {
@@ -127,8 +101,11 @@ impl Game {
                 } else {
                     self.m.insert((x, y), t);
                     if t == PADDLE {
-                        self.paddle = Some((x, y))
-                    };
+                        self.paddle_pos = Some((x, y))
+                    } else if t == BALL {
+                        self.ball_pos = Some((x, y));
+                    }
+
                     if t == BLOCK {
                         self.blocks.insert((x, y));
                     } else {
@@ -142,7 +119,7 @@ impl Game {
     }
 
     fn draw(&self, w: &mut dyn std::io::Write) -> std::io::Result<()> {
-        write!(w, "Score: {}\n", self.score)?;
+        writeln!(w, "Score: {}", self.score)?;
         let mut s = String::new();
         let ((xmin, xmax), (ymin, ymax)) = self.bounds();
         assert_eq!(ymin, 0);
@@ -150,12 +127,12 @@ impl Game {
         for y in ymin..=ymax {
             for x in xmin..=xmax {
                 if let Some(t) = self.m.get(&(x, y)) {
-                    s.push(match t {
+                    s.push(match *t {
                         0 => ' ',
-                        1 => '#',
-                        2 => '.',
-                        3 => '_',
-                        4 => '@',
+                        WALL => '#',
+                        BLOCK => '.',
+                        PADDLE => '_',
+                        BALL => '@',
                         _ => panic!(),
                     });
                 }
@@ -177,12 +154,6 @@ impl Game {
             ),
         )
     }
-
-    fn play(&mut self) -> isize {
-        self.c.poke_at(0, 2);
-        while !self.blocks.is_empty() {}
-        self.score
-    }
 }
 
 #[cfg(test)]
@@ -192,5 +163,10 @@ mod test {
     #[test]
     fn solution_a() {
         assert_eq!(solve_a(), 228);
+    }
+
+    #[test]
+    fn solution_b() {
+        assert_eq!(solve_b(false), 10776);
     }
 }
