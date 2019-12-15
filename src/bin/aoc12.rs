@@ -1,9 +1,10 @@
 extern crate num_integer;
 
-use std::cmp::Ordering;
 use std::fmt;
 
 use num_integer::Integer;
+
+use mbp_aoc2019::ordering_to_int;
 
 #[derive(Ord, PartialOrd, Eq, PartialEq, Clone, Debug)]
 struct Moon {
@@ -77,13 +78,6 @@ impl fmt::Display for Moon {
     }
 }
 
-fn ordering_to_int(ord: Ordering) -> isize {
-    match ord {
-        Ordering::Less => -1,
-        Ordering::Greater => 1,
-        Ordering::Equal => 0,
-    }
-}
 
 fn step(ms: &mut [Moon]) {
     // gravity
