@@ -78,6 +78,36 @@ fn solve_type_b(s: &str) -> String {
     //
     // All this is done modulo 10 which seems to perhaps offer some more scope to
     // avoid work...
+    //
+    // So the FFT is the sum of products of the inputs. If the input is repeated
+    // 10k times, that just means the multipliers are larger.
+    //
+    // I think to calculate output position i (at least in the first cycle)
+    // we can find FFT(a)[i] = sum_j(M(i, j) * a[j])
+    // and M() can be defined in closed form.
+    //
+    // For 1 repeat, M is just an expanded cycle of [0, 1, 0, -1] but if the
+    // list is to be repeated, then more generally we need to calculate how many
+    // times a[j] will occur at positions wtih both additive, and negative,
+    // effects, respectively.
+    //
+    // We could define FFT(a * n)[i] = sum_j(MR(i, j, len(a), r) * a[j]).
+    //
+    // The counts in MR seem to come from the divmod relationship of len(a), r,
+    // j, and i... Which seems a little complicated but probably possible to
+    // compute in closed form.
+    //
+    // But then calculating 100 phases of this seems harder, because there's
+    // no guarantee the intermediate input repeats; in fact it seems unlikely
+    // to. But, computing a ~6.5M element vector where each element depends on
+    // 6.5M inputs is infeasible, and seems like it shouldn't really be
+    // necessary. .
+    //
+    // Could it be possible to compute MRP(i, j, len(a), r, p) which is the
+    // multiplier for a[j] to calculate output digit i when a is repeated r
+    // times, and the whole thing is run for p phases? It might be possible.
+    // It seems like the result would still have this form of a sum of
+    // products of the original input, a.
     unimplemented!();
 }
 
