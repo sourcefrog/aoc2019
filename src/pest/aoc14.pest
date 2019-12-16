@@ -1,0 +1,16 @@
+WHITESPACE = _{ " " }
+
+alpha = { 'A'..'Z' }
+digit = { '0'..'9' }
+
+ident = { alpha+ }
+number = { digit+ }
+quantity = { number ~ ident }
+
+recipe = { ingredients ~ "=>" ~ result ~ "\n" }
+
+ingredients = { quantity ~ (", " ~ ingredients)* }
+result = { quantity }
+
+recipe_list = { recipe+ }
+
