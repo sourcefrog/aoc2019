@@ -9,11 +9,23 @@ pub fn main() {
     //    println!(
     //        "{:?}",
     //    );
-    println!("{:?}", solve_a());
-    println!("{:?}", solve_b());
+    //    println!("{:?}", solve_a());
+    // println!("{:?}", solve_b());
+
+    let s = "03036732577212944063491565474664";
+    let a = str_to_vi8(s);
+    println!("direct fftn:\n{}", vi8_to_string(&fftn(a, 100)));
+
+    let mut ss = s.to_string();
+    ss.push_str(s);
+    println!("doubled input:\n{}", &ss);
+    println!(
+        "doubled fftn:\n{}",
+        vi8_to_string(&fftn(str_to_vi8(&ss), 100))
+    );
 }
 
-fn vi8_to_str(a: &[i8]) -> String {
+fn vi8_to_string(a: &[i8]) -> String {
     let mut s = String::new();
     for i in a {
         s.push_str(&i.to_string());
@@ -47,7 +59,7 @@ fn fft1(a: &[i8]) -> Vec<i8> {
 }
 
 fn solve_a() -> String {
-    vi8_to_str(
+    vi8_to_string(
         &fftn(
             str_to_vi8(&std::fs::read_to_string("input/input16.txt").unwrap()),
             100,
@@ -61,54 +73,13 @@ fn solve_b() -> String {
 }
 
 fn solve_type_b(s: &str) -> String {
-    let _a = str_to_vi8(s);
+    let s = s.trim();
     let _offset: usize = s[..7].parse().unwrap();
 
-    // Calculating everything by brute force over 100M * 100 might be a bit slow...
-    //
-    // Digit j of the output is the sum of roughly 1/4th of the input digits, minus
-    // the sum of 1/4 of the others. These occur at intervals that are predictable
-    // from j.
-    //
-    // It's the sum of blocks of length (j+1), repeating on a cycle of (j+1)*4,
-    // starting at position j. And minus same-size blocks half out of phase.
-    //
-    // So that cuts out a significant bit but we still probably look at all the
-    // input...
-    //
-    // All this is done modulo 10 which seems to perhaps offer some more scope to
-    // avoid work...
-    //
-    // So the FFT is the sum of products of the inputs. If the input is repeated
-    // 10k times, that just means the multipliers are larger.
-    //
-    // I think to calculate output position i (at least in the first cycle)
-    // we can find FFT(a)[i] = sum_j(M(i, j) * a[j])
-    // and M() can be defined in closed form.
-    //
-    // For 1 repeat, M is just an expanded cycle of [0, 1, 0, -1] but if the
-    // list is to be repeated, then more generally we need to calculate how many
-    // times a[j] will occur at positions wtih both additive, and negative,
-    // effects, respectively.
-    //
-    // We could define FFT(a * n)[i] = sum_j(MR(i, j, len(a), r) * a[j]).
-    //
-    // The counts in MR seem to come from the divmod relationship of len(a), r,
-    // j, and i... Which seems a little complicated but probably possible to
-    // compute in closed form.
-    //
-    // But then calculating 100 phases of this seems harder, because there's
-    // no guarantee the intermediate input repeats; in fact it seems unlikely
-    // to. But, computing a ~6.5M element vector where each element depends on
-    // 6.5M inputs is infeasible, and seems like it shouldn't really be
-    // necessary. .
-    //
-    // Could it be possible to compute MRP(i, j, len(a), r, p) which is the
-    // multiplier for a[j] to calculate output digit i when a is repeated r
-    // times, and the whole thing is run for p phases? It might be possible.
-    // It seems like the result would still have this form of a sum of
-    // products of the original input, a.
-    unimplemented!();
+    let a = fftn(str_to_vi8(s), 100);
+    vi8_to_string(&a)
+    // let offmod = offset % s.len();
+    // vi8_to_string(&a[offmod..offmod + 7])
 }
 
 fn fftn(mut a: Vec<i8>, n: usize) -> Vec<i8> {
@@ -128,5 +99,16 @@ mod test {
         assert_eq!(fft1(&str_to_vi8("12345678")), str_to_vi8("48226158"));
 
         assert_eq!(fftn(str_to_vi8("12345678"), 4), str_to_vi8("01029498"));
+    }
+
+    #[test]
+    fn example_b() {
+        // 03036732577212944063491565474664 becomes 84462026.
+        // 02935109699940807407585447034323 becomes 78725270.
+        // 03081770884921959731165446850517 becomes 53553731.
+        assert_eq!(
+            solve_type_b("03036732577212944063491565474664",),
+            "84462026"
+        );
     }
 }
