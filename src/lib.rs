@@ -1,5 +1,9 @@
 pub mod intcode;
+pub mod matrix;
 pub mod permute;
+mod point;
+
+pub use point::{point, Point};
 
 use std::cmp::Ordering;
 
