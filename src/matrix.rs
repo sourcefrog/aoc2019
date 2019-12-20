@@ -42,6 +42,17 @@ impl<T: Clone> Matrix<T> {
         self.d.iter()
     }
 
+    pub fn try_get(&self, p: Point) -> Option<&T> {
+        // Point is usized, but the comparison for 0 is for clarity, and
+        // safety if it ever changes.
+        #![allow(unused_comparisons)]
+        if p.x >= 0 && p.y >= 0 && p.x < self.w && p.y < self.h {
+            Some(&self.d[self.w * p.y + p.x])
+        } else {
+            None
+        }
+    }
+
     /// Return a vec of all present 8-way neighbors.
     pub fn neighbor8_values(&self, p: Point) -> Vec<T> {
         let mut v: Vec<T> = Vec::with_capacity(8);

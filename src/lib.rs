@@ -3,6 +3,7 @@ pub mod matrix;
 pub mod permute;
 mod point;
 
+pub use matrix::Matrix;
 pub use point::{point, Point};
 
 use std::cmp::Ordering;
