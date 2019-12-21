@@ -15,7 +15,7 @@ pub fn main() {
 }
 
 fn solve_a() -> isize {
-    solve_from_file("input/input20.txt")
+    solve_a_from_file("input/input20.txt")
 }
 
 fn solve_a_from_file(filename: &str) -> isize {
