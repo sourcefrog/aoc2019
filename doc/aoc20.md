@@ -16,3 +16,15 @@ binaries, and a list of 2-letter labels of portals onto squares.
 Actually, perhaps it's easier to read it into a 2d matrix of chars,
 then parse from that - will make it a little easier to deal with finding
 letters above/below each other.
+
+...
+
+Did one initial step of finding the labels and the squares that they mark.
+
+It seems like it'd never be interesting to walk anywhere other than the
+shortest path between two portals... On the other hand a two-stage search
+seems harder to implement.
+
+One way to describe this would be as a list of squares that are one step from
+each other: either vacant `.` squares, or portal edges. Then we could do a
+shortest-path-first search through these.

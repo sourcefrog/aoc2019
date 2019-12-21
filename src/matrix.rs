@@ -53,6 +53,25 @@ impl<T: Clone> Matrix<T> {
         }
     }
 
+    /// Return a vec of the 4 neighboring points (if in-range) and their
+    /// values.
+    pub fn neighbors4(&self, p: Point) -> Vec<(Point, &T)> {
+        let mut v: Vec<(Point, &T)> = Vec::with_capacity(4);
+        if p.y > 0 {
+            v.push((p.up(), &self[p.up()]))
+        }
+        if p.y < self.h - 1 {
+            v.push((p.down(), &self[p.down()]))
+        }
+        if p.x > 0 {
+            v.push((p.left(), &self[p.left()]))
+        }
+        if p.x < self.w - 1 {
+            v.push((p.right(), &self[p.right()]))
+        }
+        v
+    }
+
     /// Return a vec of all present 8-way neighbors.
     pub fn neighbor8_values(&self, p: Point) -> Vec<T> {
         let mut v: Vec<T> = Vec::with_capacity(8);
