@@ -18,11 +18,11 @@ fn solve_a() -> isize {
     solve_from_file("input/input20.txt")
 }
 
-fn solve_from_file(filename: &str) -> isize {
-    solve(&std::fs::read_to_string(filename).unwrap())
+fn solve_a_from_file(filename: &str) -> isize {
+    shortest_aa_zz_path(&std::fs::read_to_string(filename).unwrap())
 }
 
-fn solve(s: &str) -> isize {
+fn shortest_aa_zz_path(s: &str) -> isize {
     let mut mb = Matrix::<char>::from_rows();
     for l in s.lines() {
         let cv: Vec<char> = l.chars().collect();
@@ -159,12 +159,12 @@ mod test {
 
     #[test]
     fn example_a_1() {
-        assert_eq!(solve_from_file("input/example_20_1.txt"), 23);
+        assert_eq!(solve_a_from_file("input/example_20_1.txt"), 23);
     }
 
     #[test]
     fn example_a_2() {
-        assert_eq!(solve_from_file("input/example_20_2.txt"), 58);
+        assert_eq!(solve_a_from_file("input/example_20_2.txt"), 58);
     }
 
     #[test]
