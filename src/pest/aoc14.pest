@@ -7,7 +7,7 @@ ident = @{ alpha+ }
 number = @{ digit+ }
 quantity = { number ~ ident }
 
-recipe = { ingredients ~ "=>" ~ product ~ "\n" }
+recipe = { ingredients ~ "=>" ~ product ~ "\r"? ~ "\n" }
 
 ingredients = { quantity ~ (", " ~ ingredients)* }
 product = { quantity }
