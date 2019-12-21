@@ -1,21 +1,28 @@
 #![allow(unused_imports, dead_code)]
 
+use mbp_aoc2019::shortest_path::shortest_distance;
 use mbp_aoc2019::{point, Matrix, Point};
 use std::collections::BTreeMap;
 
 const PASSAGE: char = '.';
 
-struct Maze {}
-
 type AdjMap = BTreeMap<Point, Vec<Point>>;
-type Label = [char; 2];
+type Label = String;
 type LabelMap = BTreeMap<Label, Vec<Point>>;
 
 pub fn main() {
-    load("input/input20.txt");
+    println!("20a: {}", solve_a());
 }
 
-fn parse(s: &str) -> Maze {
+fn solve_a() -> isize {
+    solve_from_file("input/input20.txt")
+}
+
+fn solve_from_file(filename: &str) -> isize {
+    solve(&std::fs::read_to_string(filename).unwrap())
+}
+
+fn solve(s: &str) -> isize {
     let mut mb = Matrix::<char>::from_rows();
     for l in s.lines() {
         let cv: Vec<char> = l.chars().collect();
@@ -25,14 +32,30 @@ fn parse(s: &str) -> Maze {
     let mat = mb.finish();
 
     let mut adj = find_square_adjacencies(&mat);
-    let portals = find_labels(&mat);
-    add_portal_adjacencies(&portals, &mut adj);
+    let labels = find_labels(&mat);
+    add_portal_adjacencies(&labels, &mut adj);
 
+    let aa = dbg!(find_single_portal(&labels, "AA"));
+    let zz = dbg!(find_single_portal(&labels, "ZZ"));
+
+    // Get all neighbors of p, and they're all distance 1.
+    let mut neighb = |p| adj.get(&p).unwrap().iter().map(|p1| (*p1, 1)).collect();
+
+    shortest_distance(aa, zz, &mut neighb)
+}
+
+#[allow(unused)]
+fn dump_adjacencies(adj: &AdjMap) {
     for (k, v) in adj.iter() {
         println!("{:3}, {:3} => {:?}", k.x, k.y, v);
     }
+}
 
-    Maze {}
+fn find_single_portal(labels: &LabelMap, name: &str) -> Point {
+    match labels.get(name).map(Vec::as_slice) {
+        Some([p1]) => *p1,
+        other => panic!("expected one point at {:?}, got {:?}", name, other),
+    }
 }
 
 /// Transform a list of portal locations to adjacencies between their entry
@@ -94,7 +117,7 @@ fn find_labels(mat: &Matrix<char>) -> LabelMap {
         let pdown = p.down();
         if let Some(&cright) = mat.try_get(pright) {
             if cright.is_ascii_uppercase() {
-                let name = [c1, cright];
+                let name: String = [c1, cright].iter().collect();
                 // Is there a dot to the left of these, or to the right?
                 if p.x > 0 && mat[p.left()] == PASSAGE {
                     found(name, p.left());
@@ -108,7 +131,7 @@ fn find_labels(mat: &Matrix<char>) -> LabelMap {
         }
         if let Some(&cdown) = mat.try_get(pdown) {
             if cdown.is_ascii_uppercase() {
-                let name = [c1, cdown];
+                let name = [c1, cdown].iter().collect();
                 if p.y > 0 && mat[p.up()] == PASSAGE {
                     found(name, p.up());
                 } else if pdown.y < mat.height() && mat[pdown.down()] == PASSAGE {
@@ -119,19 +142,15 @@ fn find_labels(mat: &Matrix<char>) -> LabelMap {
             }
         }
     }
-    dump_portals(&mut std::io::stdout(), &v);
+    // dump_portals(&mut std::io::stdout(), &v);
     v
 }
 
 #[allow(unused)]
 fn dump_portals(w: &mut dyn std::io::Write, portals: &LabelMap) {
     for (name, ps) in portals.iter() {
-        writeln!(w, "{}{}: {:?}", name[0], name[1], ps).unwrap();
+        writeln!(w, "{}: {:?}", name, ps).unwrap();
     }
-}
-
-fn load(filename: &str) -> Maze {
-    parse(&std::fs::read_to_string(filename).unwrap())
 }
 
 #[cfg(test)]
@@ -139,7 +158,17 @@ mod test {
     use super::*;
 
     #[test]
-    fn example_1() {
-        let _maze = load("input/example_20_1.txt");
+    fn example_a_1() {
+        assert_eq!(solve_from_file("input/example_20_1.txt"), 23);
+    }
+
+    #[test]
+    fn example_a_2() {
+        assert_eq!(solve_from_file("input/example_20_2.txt"), 58);
+    }
+
+    #[test]
+    fn solution_a() {
+        assert_eq!(solve_a(), 454);
     }
 }

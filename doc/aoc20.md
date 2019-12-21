@@ -28,3 +28,10 @@ seems harder to implement.
 One way to describe this would be as a list of squares that are one step from
 each other: either vacant `.` squares, or portal edges. Then we could do a
 shortest-path-first search through these.
+
+... 
+
+Possibly, parsing the passages out of the map into an adjacency matrix 
+is unnecessary: we could pretty easily have looked them up in the character
+map on demand. But it makes the code a little easier and perhaps will help in
+part B.
