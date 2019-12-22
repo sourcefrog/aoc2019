@@ -119,7 +119,7 @@ fn solve_a() -> isize {
             queue.push((newstate.dist, newstate));
         }
         // Sort with the shortest explored paths to the end.
-        queue.sort_by_key_unstable(|(dist, state)| -dist);
+        queue.sort_by_key(|(dist, state)| -dist);
         //  println!("queue length {}", queue.len());
     }
     unreachable!()
