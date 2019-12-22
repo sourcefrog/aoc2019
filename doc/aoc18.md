@@ -25,3 +25,17 @@ we've already collected.
 
 We start at some position with no keys and we want to get - anywhere but with 
 all of the keys. Hm.
+
+...
+
+Naively walking through the maze space, treating the keys as one of the
+conditions, does find the right answer to part A, 4204. But, it's pretty
+slow, at over sixty seconds for an unoptimized build...
+
+One problem with this is that we'll repeatedly discover all the paths between
+keys and doors, for all combinations of keys. Perhaps we should try a
+two-phase structure where we first find the shortest paths between interesting
+points (start, keys, doors), then find the best order to visit them all. 
+
+As a meta point, getting a dumb solution to part A, so that I can see what's
+in part B, might work well.
