@@ -107,6 +107,31 @@ impl<T: Clone> Matrix<T> {
     }
 }
 
+impl Matrix<char> {
+    /// Build a matrix from a rectangular string.
+    pub fn from_string_lines(s: &str) -> Matrix<char> {
+        let lines = || s.lines().map(str::trim).filter(|l| !l.is_empty());
+        let w = lines().map(str::len).min().unwrap();
+        let h = lines().count();
+        let d: Vec<char> = lines().map(str::chars).flatten().collect();
+        Matrix { w, h, d }
+    }
+
+    pub fn to_string_lines(&self) -> String {
+        let mut s = String::with_capacity(self.h * (self.w + 1));
+        let mut x = 0;
+        for c in self.d.iter() {
+            s.push(*c);
+            x += 1;
+            if x == self.w {
+                s.push('\n');
+                x = 0;
+            }
+        }
+        s
+    }
+}
+
 impl<T: Clone> Index<Point> for Matrix<T> {
     type Output = T;
     fn index(&self, p: Point) -> &T {
