@@ -9,26 +9,30 @@ pub fn main() {
     println!("17a: {}", solve_a());
 }
 
-fn is_scaffold(ch: char) -> bool {
-    match ch {
-        '#' | '^' | 'v' | '<' | '>' => true,
-        '.' | 'X' => false,
-        _ => panic!("unexpected char {:?}", ch),
+fn is_scaffold(ch: Option<char>) -> bool {
+    if let Some(ch) = ch {
+        match ch {
+            '#' | '^' | 'v' | '<' | '>' => true,
+            '.' | 'X' => false,
+            _ => panic!("unexpected char {:?}", ch),
+        }
+    } else {
+        false
     }
 }
 
-fn solve_a() -> usize {
+fn solve_a() -> isize {
     let mat = load_map();
     let mut marked = mat.clone();
     let mut align = 0;
     // Count neighbors by looking at every point to see if it is a beam
     // and there is a beam above, below, left, and right.
     for p in mat.iter_points() {
-        if is_scaffold(mat[p])
-            && (p.x > 0 && is_scaffold(mat[p.left()]))
-            && (p.x < mat.width() - 1 && is_scaffold(mat[p.right()]))
-            && (p.y > 0 && is_scaffold(mat[p.up()]))
-            && (p.y < mat.height() - 1 && is_scaffold(mat[p.down()]))
+        if is_scaffold(mat.try_get(p))
+            && is_scaffold(mat.try_get(p.left()))
+            && is_scaffold(mat.try_get(p.right()))
+            && is_scaffold(mat.try_get(p.up()))
+            && is_scaffold(mat.try_get(p.down()))
         {
             marked[p] = '$';
             align += p.x * p.y

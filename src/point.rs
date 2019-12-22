@@ -3,8 +3,8 @@ use std::fmt;
 
 #[derive(Copy, Clone, PartialEq, Eq, Ord, PartialOrd)]
 pub struct Point {
-    pub y: usize,
-    pub x: usize,
+    pub y: isize,
+    pub x: isize,
 }
 
 impl fmt::Debug for Point {
@@ -14,7 +14,7 @@ impl fmt::Debug for Point {
 }
 
 /// Shorthand to construct a point.
-pub fn point(x: usize, y: usize) -> Point {
+pub fn point(x: isize, y: isize) -> Point {
     Point { x, y }
 }
 
@@ -36,15 +36,6 @@ impl Point {
     }
 
     pub fn neighbors(&self) -> Vec<Point> {
-        let mut r = Vec::with_capacity(4);
-        if self.x > 0 {
-            r.push(self.left())
-        }
-        if self.y > 0 {
-            r.push(self.up())
-        }
-        r.push(self.right());
-        r.push(self.down());
-        r
+        vec![self.left(), self.right(), self.up(), self.down()]
     }
 }

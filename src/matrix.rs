@@ -7,16 +7,16 @@ use crate::{point, Point};
 
 #[derive(Clone, Eq, PartialEq)]
 pub struct Matrix<T> {
-    w: usize,
-    h: usize,
+    w: isize,
+    h: isize,
     d: Vec<T>,
 }
 
 impl<T: Clone> Matrix<T> {
     pub fn new(w: usize, h: usize, d: T) -> Matrix<T> {
         Matrix {
-            w,
-            h,
+            w: w as isize,
+            h: h as isize,
             d: vec![d; w * h],
         }
     }
@@ -30,11 +30,11 @@ impl<T: Clone> Matrix<T> {
     }
 
     pub fn width(&self) -> usize {
-        self.w
+        self.w as usize
     }
 
     pub fn height(&self) -> usize {
-        self.h
+        self.h as usize
     }
 
     /// Return all values in row,col order.
@@ -42,12 +42,13 @@ impl<T: Clone> Matrix<T> {
         self.d.iter()
     }
 
-    pub fn try_get(&self, p: Point) -> Option<&T> {
-        // Point is usized, but the comparison for 0 is for clarity, and
-        // safety if it ever changes.
-        #![allow(unused_comparisons)]
+    fn offset(&self, p: Point) -> usize {
+        (self.w as usize) * (p.y as usize) + (p.x as usize)
+    }
+
+    pub fn try_get(&self, p: Point) -> Option<T> {
         if p.x >= 0 && p.y >= 0 && p.x < self.w && p.y < self.h {
-            Some(&self.d[self.w * p.y + p.x])
+            Some(self.d[self.offset(p)].clone())
         } else {
             None
         }
@@ -60,13 +61,13 @@ impl<T: Clone> Matrix<T> {
         if p.y > 0 {
             v.push((p.up(), &self[p.up()]))
         }
-        if p.y < self.h - 1 {
+        if p.y < (self.h - 1) {
             v.push((p.down(), &self[p.down()]))
         }
         if p.x > 0 {
             v.push((p.left(), &self[p.left()]))
         }
-        if p.x < self.w - 1 {
+        if p.x < (self.w - 1) {
             v.push((p.right(), &self[p.right()]))
         }
         v
@@ -80,22 +81,22 @@ impl<T: Clone> Matrix<T> {
                 v.push(self[p.left().up()].clone())
             }
             v.push(self[p.up()].clone());
-            if p.x < self.w - 1 {
+            if p.x < (self.w - 1) {
                 v.push(self[p.right().up()].clone())
             }
         }
         if p.x > 0 {
             v.push(self[p.left()].clone())
         }
-        if p.x < self.w - 1 {
+        if p.x < (self.w - 1) {
             v.push(self[p.right()].clone())
         }
-        if p.y < self.h - 1 {
+        if p.y < (self.h - 1) {
             if p.x > 0 {
                 v.push(self[p.left().down()].clone())
             }
             v.push(self[p.down()].clone());
-            if p.x < self.w - 1 {
+            if p.x < (self.w - 1) {
                 v.push(self[p.right().down()].clone())
             }
         }
@@ -103,7 +104,9 @@ impl<T: Clone> Matrix<T> {
     }
 
     pub fn iter_points<'a>(&'a self) -> Box<dyn Iterator<Item = Point> + 'a> {
-        Box::new((0..self.h).flat_map(move |y| (0..self.w).map(move |x| point(x, y))))
+        Box::new(
+            (0..self.h).flat_map(move |y| (0..self.w).map(move |x| point(x as isize, y as isize))),
+        )
     }
 }
 
@@ -111,14 +114,14 @@ impl Matrix<char> {
     /// Build a matrix from a rectangular string.
     pub fn from_string_lines(s: &str) -> Matrix<char> {
         let lines = || s.lines().map(str::trim).filter(|l| !l.is_empty());
-        let w = lines().map(str::len).min().unwrap();
-        let h = lines().count();
+        let w = lines().map(str::len).min().unwrap() as isize;
+        let h = lines().count() as isize;
         let d: Vec<char> = lines().map(str::chars).flatten().collect();
         Matrix { w, h, d }
     }
 
     pub fn to_string_lines(&self) -> String {
-        let mut s = String::with_capacity(self.h * (self.w + 1));
+        let mut s = String::with_capacity(self.height() * (self.width() + 1));
         let mut x = 0;
         for c in self.d.iter() {
             s.push(*c);
@@ -135,15 +138,18 @@ impl Matrix<char> {
 impl<T: Clone> Index<Point> for Matrix<T> {
     type Output = T;
     fn index(&self, p: Point) -> &T {
-        &self.d[self.w * p.y + p.x]
+        &self.d[self.offset(p)]
     }
 }
 
 impl<T: Clone> IndexMut<Point> for Matrix<T> {
     fn index_mut(&mut self, p: Point) -> &mut T {
+        assert!(p.x >= 0);
+        assert!(p.y >= 0);
         assert!(p.x < self.w, "{:?} too wide for {}", p, self.w);
         assert!(p.y < self.h);
-        &mut self.d[self.w * p.y + p.x]
+        let off = self.offset(p);
+        &mut self.d[off]
     }
 }
 
@@ -169,8 +175,8 @@ impl<T: Clone> FromRows<T> {
         self.d.shrink_to_fit();
         assert!(self.d.len() % self.w == 0, "Matrix isn't rectangular");
         Matrix {
-            w: self.w,
-            h: self.d.len() / self.w,
+            w: self.w as isize,
+            h: (self.d.len() / self.w) as isize,
             d: self.d,
         }
     }

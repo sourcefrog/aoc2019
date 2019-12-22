@@ -115,13 +115,13 @@ fn find_labels(mat: &Matrix<char>) -> LabelMap {
         }
         let pright = p.right();
         let pdown = p.down();
-        if let Some(&cright) = mat.try_get(pright) {
+        if let Some(cright) = mat.try_get(pright) {
             if cright.is_ascii_uppercase() {
                 let name: String = [c1, cright].iter().collect();
                 // Is there a dot to the left of these, or to the right?
-                if p.x > 0 && mat[p.left()] == PASSAGE {
+                if mat.try_get(p.left()) == Some(PASSAGE) {
                     found(name, p.left());
-                } else if pright.x < mat.width() && mat[pright.right()] == PASSAGE {
+                } else if mat.try_get(pright.right()) == Some(PASSAGE) {
                     found(name, pright.right());
                 } else {
                     panic!("confused at {:?}", p);
@@ -129,12 +129,12 @@ fn find_labels(mat: &Matrix<char>) -> LabelMap {
                 continue;
             }
         }
-        if let Some(&cdown) = mat.try_get(pdown) {
+        if let Some(cdown) = mat.try_get(pdown) {
             if cdown.is_ascii_uppercase() {
                 let name = [c1, cdown].iter().collect();
-                if p.y > 0 && mat[p.up()] == PASSAGE {
+                if mat.try_get(p.up()) == Some(PASSAGE) {
                     found(name, p.up());
-                } else if pdown.y < mat.height() && mat[pdown.down()] == PASSAGE {
+                } else if mat.try_get(pdown.down()) == Some(PASSAGE) {
                     found(name, pdown.down());
                 } else {
                     panic!("confused at {:?}", p);
