@@ -106,7 +106,7 @@ impl Computer {
     pub fn from_file(path: &str) -> Computer {
         Computer::from_string(&std::fs::read_to_string(path).unwrap())
     }
-    
+
     pub fn wants_input(&self) -> bool {
         self.wants_input
     }
@@ -122,6 +122,10 @@ impl Computer {
 
     pub fn clear_input(&mut self) {
         self.input.clear()
+    }
+
+    pub fn input_len(&self) -> usize {
+        self.input.len()
     }
 
     pub fn poke_at(&mut self, addr: usize, v: isize) {
@@ -155,7 +159,7 @@ impl Computer {
         // ignored.
         let mut newpc = self.pc + insn_len;
         self.wants_input = false;
-            // println!("{:?}", &insn);
+        // println!("{:?}", &insn);
         match &insn {
             Stop => {
                 self.halt = true;
@@ -200,7 +204,7 @@ impl Computer {
         true
     }
 
-    /// Run until reaching a Stop instruction.
+    /// Run until reaching a Stop instruction, or lacking input.
     pub fn run(&mut self) {
         while self.step() {}
     }
