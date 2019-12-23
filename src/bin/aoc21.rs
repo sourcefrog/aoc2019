@@ -1,11 +1,10 @@
-#![allow(dead_code)]
-
 use std::convert::TryInto;
 
 use mbp_aoc2019::intcode::Computer;
 
 pub fn main() {
     println!("21a: {}", solve_a());
+    println!("21b: {}", solve_b());
 }
 
 fn solve_a() -> isize {
@@ -26,6 +25,30 @@ WALK\n",
     );
     cpu.run();
     print_output(cpu).unwrap()
+}
+
+fn solve_b() -> isize {
+    let cpu = &mut Computer::from_file("input/input21.txt");
+
+    cpu.run();
+    print_output(cpu);
+    push_string_input(
+        cpu,
+        "\
+NOT T T
+AND A T
+AND B T 
+AND C T 
+NOT T J
+AND D J
+NOT E T
+NOT T T
+OR H T
+AND T J
+RUN\n",
+    );
+    cpu.run();
+    print_output(cpu).unwrap_or(0)
 }
 
 fn print_output(cpu: &mut Computer) -> Option<isize> {
@@ -63,5 +86,10 @@ mod test {
     #[test]
     fn solution_a() {
         assert_eq!(solve_a(), 19_357_290);
+    }
+
+    #[test]
+    fn solution_b() {
+        assert_eq!(solve_b(), 1_136_394_042);
     }
 }

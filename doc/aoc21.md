@@ -47,3 +47,16 @@ by brute force...
 
 So: jump if D is floor and there are any gaps. In other words jump eagerly
 if you know you'll need to jump and if you won't die by jumping now.
+
+## Part B
+
+Example:
+      @ABCDEFGHI
+    #####.#.##...####
+
+We need to not jump too early and land on the single square, as then we're
+doomed. So it seems like the condition should be extended to, also don't
+jump unless there's either a square after D, (E is set), or you can jump
+again from D, (H is set.) At least it would work in this example.
+
+    jump = D && !(A && B && C) && (E || H)
