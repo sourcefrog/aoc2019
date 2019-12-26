@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 use std::convert::TryFrom;
 use std::convert::TryInto;
-
+use std::io::prelude::*;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Param {
     Position(usize),
@@ -127,7 +127,6 @@ impl Computer {
     pub fn input_len(&self) -> usize {
         self.input.len()
     }
-    
     /// Push all the characters from the string into the input buffer.
     pub fn push_input_string(&mut self, s: &str) {
         for c in s.chars().map(|c| (c as u32) as isize) {
@@ -235,6 +234,26 @@ impl Computer {
                 }
             } else {
                 return None;
+            }
+        }
+    }
+
+    pub fn interact(&mut self) {
+        let stdin = std::io::stdin();
+        let stdout = std::io::stdout();
+        let mut in_lines = stdin.lock().lines();
+        let mut out = stdout.lock();
+        loop {
+            self.run();
+            out.write_all(&self.drain_output_string().as_bytes())
+                .unwrap();
+            if self.is_halted() {
+                // TODO: Return high-valued score, if there was one.
+                return;
+            } else if self.wants_input() {
+                let mut l: String = in_lines.next().unwrap().unwrap();
+                l.push('\n');
+                self.push_input_string(&l);
             }
         }
     }
