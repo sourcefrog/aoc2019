@@ -52,24 +52,12 @@ RUN\n",
 }
 
 fn print_output(cpu: &mut Computer) -> Option<isize> {
-    let (text, score) = output_to_string_and_score(cpu);
+    let (text, score) = cpu.drain_output_to_string_and_score();
     print!("{}", text);
     if let Some(score) = score {
         println!("score: {}", score);
     }
     score
-}
-
-fn output_to_string_and_score(cpu: &mut Computer) -> (String, Option<isize>) {
-    let mut s = String::with_capacity(cpu.output_len());
-    let mut score = None;
-    for c in cpu.drain_output() {
-        match std::char::from_u32(c.try_into().unwrap()) {
-            Some(ch) => s.push(ch),
-            None => score = Some(c),
-        }
-    }
-    (s, score)
 }
 
 fn push_string_input(cpu: &mut Computer, ins: &str) {

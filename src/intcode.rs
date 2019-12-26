@@ -151,11 +151,16 @@ impl Computer {
         self.output.len()
     }
 
-    pub fn drain_output_string(&mut self) -> String {
-        self.drain_output()
-            .iter()
-            .map(|c| std::char::from_u32(*c as u32).unwrap())
-            .collect()
+    pub fn drain_output_to_string_and_score(&mut self) -> (String, Option<isize>) {
+        let mut s = String::with_capacity(self.output_len());
+        let mut score = None;
+        for c in self.drain_output() {
+            match std::char::from_u32(c.try_into().unwrap()) {
+                Some(ch) => s.push(ch),
+                None => score = Some(c),
+            }
+        }
+        (s, score)
     }
 
     pub fn borrow_mem(&self) -> &[isize] {
@@ -238,18 +243,17 @@ impl Computer {
         }
     }
 
-    pub fn interact(&mut self) {
+    pub fn interact(&mut self) -> Option<isize> {
         let stdin = std::io::stdin();
         let stdout = std::io::stdout();
         let mut in_lines = stdin.lock().lines();
         let mut out = stdout.lock();
         loop {
             self.run();
-            out.write_all(&self.drain_output_string().as_bytes())
-                .unwrap();
+            let (text, score) = self.drain_output_to_string_and_score();
+            out.write_all(&text.as_bytes()).unwrap();
             if self.is_halted() {
-                // TODO: Return high-valued score, if there was one.
-                return;
+                return score;
             } else if self.wants_input() {
                 let mut l: String = in_lines.next().unwrap().unwrap();
                 l.push('\n');
