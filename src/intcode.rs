@@ -127,6 +127,13 @@ impl Computer {
     pub fn input_len(&self) -> usize {
         self.input.len()
     }
+    
+    /// Push all the characters from the string into the input buffer.
+    pub fn push_input_string(&mut self, s: &str) {
+        for c in s.chars().map(|c| (c as u32) as isize) {
+            self.push_input(c)
+        }
+    }
 
     pub fn poke_at(&mut self, addr: usize, v: isize) {
         self.mem[addr] = v;
@@ -143,6 +150,13 @@ impl Computer {
     // Length of pending output
     pub fn output_len(&self) -> usize {
         self.output.len()
+    }
+
+    pub fn drain_output_string(&mut self) -> String {
+        self.drain_output()
+            .iter()
+            .map(|c| std::char::from_u32(*c as u32).unwrap())
+            .collect()
     }
 
     pub fn borrow_mem(&self) -> &[isize] {
