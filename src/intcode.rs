@@ -248,9 +248,11 @@ impl Computer {
         let stdout = std::io::stdout();
         let mut in_lines = stdin.lock().lines();
         let mut out = stdout.lock();
+        let mut score: Option<isize> = None;
         loop {
             self.run();
-            let (text, score) = self.drain_output_to_string_and_score();
+            let (text, new_score) = self.drain_output_to_string_and_score();
+            score = score.or(new_score);
             out.write_all(&text.as_bytes()).unwrap();
             if self.is_halted() {
                 return score;
