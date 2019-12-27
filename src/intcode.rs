@@ -155,9 +155,11 @@ impl Computer {
         let mut s = String::with_capacity(self.output_len());
         let mut score = None;
         for c in self.drain_output() {
-            match std::char::from_u32(c.try_into().unwrap()) {
-                Some(ch) => s.push(ch),
-                None => score = Some(c),
+            if c > 0 && c < 127 {
+                s.push(std::char::from_u32(c.try_into().unwrap()).unwrap());
+            } else {
+                assert!(score.is_none());
+                score = Some(c)
             }
         }
         (s, score)
