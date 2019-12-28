@@ -114,31 +114,19 @@ occurs more than once. Which is possible. (Although, not exactly the longest, as
 need to balance accounting for the whole path in three subroutines with 
 all the size constraints.)
 
-A naive greedy approach would be to start filling A, then B, then see what we 
-can reuse and adjust:
-
-   01234567890123456789
-A: L,10,R,12,R,12,R,6,R
-B: 10,L,10,L,10,R,12,R
-C: 12,R,10,L,10,L,12,R
-
-(This brings us to the right of the bottom line, having made 13 of the ~35 necessary
-turns.)
-
 This path altogether is 
 
-    L,10,R,12,R,12,R,6,R,10,L,10,L,10,R,12,R,12,R,10,L,10,L,12,R,6,R,6,R,10,L,10,R,10,L,10,L,12,R,6,R,6,R,10,L,10,R,10,L,10,
-    AAAAAAAAAAAAAA BBBBBBBBBBBBB AAAAAAAAAAAAAA CCCCCCCCCCCCCCCCCC BBBBBBBBBBBBB CCCCCCCCCCCCCCCCCC BBBBBBBBBBBBB CCCCCCCCCC        
-
+    L,10,R,12,R,12,R,6,R,10,L,10,L,10,R,12,R,12,R,10,L,10,L,12,R,6,R,6,R,10,L,10,R,10,L,10,L,12,R,6,R,6,R,10,L,10,R,10,L,10,L,12,R,6,L,10,R,12,R,12,R,10,L,10,L,12,R,6
+    AAAAAAAAAAAAAA BBBBBBBBBBBBB AAAAAAAAAAAAAA CCCCCCCCCCCCCCCCCC BBBBBBBBBBBBB CCCCCCCCCCCCCCCCCC BBBBBBBBBBBBB CCCCCCCCCCCCCCCCCC AAAAAAAAAAAAAA CCCCCCCCCCCCCCCCCC
 
 So I wonder if I could make the two paths at the start fit better together by taking different choices?
 
 we can see
 
    01234567890123456789
-A: L,10,R,12,R,12,R
-B: 6,R,10,L,10
-C: 10,L,10,
+A: L,10,R,12,R,12
+B: R,6,R,10,L,10
+C: R,10,L,10,L,12,R,6
 
 A longer path
 

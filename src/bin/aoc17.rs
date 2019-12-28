@@ -46,13 +46,12 @@ fn solve_a() -> isize {
 fn solve_b() -> isize {
     let mut cpu = Computer::from_file("input/input17.txt");
     cpu.poke_at(0, 2);
-    cpu.push_input_string("A,B,A,C,B,C,B,C\n");
+    cpu.push_input_string("A,B,A,C,B,C,B,C,A,C\n");
     cpu.push_input_string("L,10,R,12,R,12\n");
     cpu.push_input_string("R,6,R,10,L,10\n");
     cpu.push_input_string("R,10,L,10,L,12,R,6\n");
     cpu.push_input_string("1\n");
     let score = cpu.interact().unwrap_or(0);
-    println!("score: {}", score);
     score
 }
 
@@ -75,5 +74,10 @@ mod test {
     #[test]
     fn solution_a() {
         assert_eq!(solve_a(), 3888);
+    }
+
+    #[test]
+    fn solution_b() {
+        assert_eq!(solve_b(), 927_809);
     }
 }
