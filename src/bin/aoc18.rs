@@ -8,8 +8,6 @@ use mbp_aoc2019::{Matrix, Point};
 
 type Map = Matrix<char>;
 
-
-
 const WALL: char = '#';
 const PASSAGE: char = '.';
 const PLAYER: char = '@';
@@ -138,8 +136,12 @@ fn solve_type_a(s: &str) -> usize {
                 }
                 let newk = (ks1.clone(), p1);
                 match next_queue.entry(newk) {
-                    Entry::Vacant(v) => { v.insert(dist1);}
-                    Entry::Occupied(mut o) => {o.insert(std::cmp::min(* o.get(), dist1));}
+                    Entry::Vacant(v) => {
+                        v.insert(dist1);
+                    }
+                    Entry::Occupied(mut o) => {
+                        o.insert(std::cmp::min(*o.get(), dist1));
+                    }
                 };
             }
         }
@@ -172,7 +174,12 @@ fn solve_type_b(s: &str) -> usize {
     // Process things in generations that discover all shortest paths of the same
     // length, going through any *gen* keys, and ending at each distinct key.
     let mut queue: BTreeMap<(KeySet, [Point; 4]), usize> = BTreeMap::new();
-    let starts = [start.left().up(), start.right().up(), start.left().down(), start.right().down()];
+    let starts = [
+        start.left().up(),
+        start.right().up(),
+        start.left().down(),
+        start.right().down(),
+    ];
     queue.insert((KeySet::new(), starts), 0);
     for gen in 1..=n_keys {
         let mut next_queue = BTreeMap::new();
@@ -183,12 +190,16 @@ fn solve_type_b(s: &str) -> usize {
                     if ks1.len() == n_keys {
                         best_overall = std::cmp::min(best_overall, dist1);
                     }
-                    let mut newbots = robots.clone();
+                    let mut newbots = robots;
                     newbots[i] = p1;
                     let newk = (ks1.clone(), newbots);
                     match next_queue.entry(newk) {
-                        Entry::Vacant(v) => { v.insert(dist1);}
-                        Entry::Occupied(mut o) => {o.insert(std::cmp::min(* o.get(), dist1));}
+                        Entry::Vacant(v) => {
+                            v.insert(dist1);
+                        }
+                        Entry::Occupied(mut o) => {
+                            o.insert(std::cmp::min(*o.get(), dist1));
+                        }
                     };
                 }
             }
