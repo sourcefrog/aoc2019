@@ -121,8 +121,7 @@ fn solve_type_a(mut rs: Vec<Recipe>) -> usize {
         let t_ident = needed
             .keys()
             .inspect(|t| println!("check {}", t))
-            .filter(|t| !rs.iter().any(|r| r.uses(t)))
-            .next()
+            .find(|t| !rs.iter().any(|r| r.uses(t)))
             .unwrap();
         println!("{} can be removed next", t_ident);
         let t_pos = rs
