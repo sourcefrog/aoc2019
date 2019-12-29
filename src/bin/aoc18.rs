@@ -15,7 +15,8 @@ const PASSAGE: char = '.';
 const PLAYER: char = '@';
 
 pub fn main() {
-    println!("18a: {}", solve_a());
+    // println!("18a: {}", solve_a());
+    println!("18b: {}", solve_b());
 }
 
 #[derive(Eq, PartialEq, Ord, PartialOrd, Clone)]
@@ -100,6 +101,10 @@ fn solve_a() -> usize {
     solve_type_a(&std::fs::read_to_string("input/input18.txt").unwrap())
 }
 
+fn solve_b() -> usize {
+    solve_type_b(&std::fs::read_to_string("input/input18.txt").unwrap())
+}
+
 fn solve_type_a(s: &str) -> usize {
     let mat = Matrix::from_string_lines(s);
     let mut all_keys = KeySet::new();
@@ -142,6 +147,65 @@ fn solve_type_a(s: &str) -> usize {
         queue = next_queue;
     }
     best_overall
+}
+
+fn solve_type_b(s: &str) -> usize {
+    let mut mat = Matrix::from_string_lines(s);
+    let mut all_keys = KeySet::new();
+    let mut key_pos: BTreeMap<char, Point> = BTreeMap::new();
+    for p in mat.iter_points() {
+        let c = mat[p];
+        if c.is_ascii_lowercase() {
+            all_keys.set(c);
+            key_pos.insert(c, p);
+        } else if c == PLAYER {
+            key_pos.insert(c, p);
+        }
+    }
+    let start = *key_pos.get(&'@').unwrap();
+    edit_for_b(&mut mat, start);
+    let n_keys = all_keys.len();
+
+    // Best seen distance to collect all keys.
+    let mut best_overall: usize = std::usize::MAX;
+
+    // Process things in generations that discover all shortest paths of the same
+    // length, going through any *gen* keys, and ending at each distinct key.
+    let mut queue: BTreeMap<(KeySet, [Point; 4]), usize> = BTreeMap::new();
+    let starts = [start.left().up(), start.right().up(), start.left().down(), start.right().down()];
+    queue.insert((KeySet::new(), starts), 0);
+    for gen in 1..=n_keys {
+        let mut next_queue = BTreeMap::new();
+        for ((ks0, robots), dist0) in queue.into_iter() {
+            for (i, &p0) in robots.iter().enumerate() {
+                for (dist1, ks1, _c1, p1) in reachable(&mat, dist0, &ks0, p0, &all_keys) {
+                    debug_assert_eq!(gen, ks1.len());
+                    if ks1.len() == n_keys {
+                        best_overall = std::cmp::min(best_overall, dist1);
+                    }
+                    let mut newbots = robots.clone();
+                    newbots[i] = p1;
+                    let newk = (ks1.clone(), newbots);
+                    match next_queue.entry(newk) {
+                        Entry::Vacant(v) => { v.insert(dist1);}
+                        Entry::Occupied(mut o) => {o.insert(std::cmp::min(* o.get(), dist1));}
+                    };
+                }
+            }
+        }
+        println!("generation {}: next queue len {}", gen, next_queue.len());
+        queue = next_queue;
+    }
+    best_overall
+}
+
+fn edit_for_b(mat: &mut Map, start: Point) {
+    mat[start] = WALL;
+    mat[start.left()] = WALL;
+    mat[start.right()] = WALL;
+    mat[start.up()] = WALL;
+    mat[start.down()] = WALL;
+    // We don't bother for now adding the individual markers.
 }
 
 /// Return a vec of (distance, keyset, key) for every new key reachable from
