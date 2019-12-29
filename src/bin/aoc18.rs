@@ -2,15 +2,13 @@
 
 use std::collections::btree_map::Entry;
 use std::collections::BTreeMap;
-use std::collections::BTreeSet;
-use std::collections::VecDeque;
 use std::fmt;
 
 use mbp_aoc2019::{Matrix, Point};
 
 type Map = Matrix<char>;
 
-type DistanceMap = BTreeMap<(char, char), usize>;
+
 
 const WALL: char = '#';
 const PASSAGE: char = '.';
@@ -39,9 +37,21 @@ impl KeySet {
         self.u |= 1 << KeySet::offset(c)
     }
 
+    fn clear(&mut self, c: char) {
+        self.u &= !(1 << KeySet::offset(c))
+    }
+
     fn contains(&self, c: char) -> bool {
         let c = c.to_ascii_lowercase();
         self.u & (1 << KeySet::offset(c)) != 0
+    }
+
+    fn subtract(&mut self, other: &KeySet) {
+        self.u &= !other.u;
+    }
+
+    fn is_empty(&self) -> bool {
+        self.u == 0
     }
 
     fn len(&self) -> usize {
@@ -69,7 +79,7 @@ impl KeySet {
     }
 
     fn is_subset_of(&self, other: &KeySet) -> bool {
-        self.u & other.u == self.u 
+        self.u & other.u == self.u
     }
 }
 
@@ -106,86 +116,59 @@ fn solve_type_a(s: &str) -> usize {
     let start = *key_pos.get(&'@').unwrap();
     let n_keys = all_keys.len();
 
-    // The best-known distance for any given keyset and terminal point. We might
-    // be interested to continue searching from the same point for various
-    // different prior keysets, or different final points (at different
-    // distances) for the same keyset. But there would be no point ever using 
-    // anything but the shortest path to get to a given point with a given set of
-    // keys collected. 
-    // 
-    // We don't care what path or order we took on the way to get there - in fact
-    // it's desirable to collapse them, to reduce the search space.
-    //
-    // We could go one step further, too: there's also no point searching from
-    // that point for any smaller keyset that can be achieved with the same 
-    // distance.
-    let mut besties: BTreeMap<Point, BTreeMap<KeySet, usize>> = BTreeMap::new();
-    let mut p0best = BTreeMap::new();
-    p0best.insert(KeySet::new(), 0);
-    besties.insert(start.clone(), p0best);
-
     // Best seen distance to collect all keys.
     let mut best_overall: usize = std::usize::MAX;
 
-    // Points/keysets that we want to do another search from.
-    let mut queue: VecDeque<(Point, KeySet)> = vec![(start, KeySet::new())].into();
-    let mut i = 0;
-
-    while let Some((p0, ks0)) = queue.pop_front() {
-        let dist0 = besties[&p0][&ks0];
-        i += 1;
-        if i % 1000 == 0 {
-            println!("considered {:8} paths, queue length {}", i, queue.len());
-        }
-        // println!( "looking at distance      {:5} path {:26?} {:?}", dist0, ks0, p0);
-        for (dist1, ks1, c1, p1) in reachable(&mat, dist0, &ks0, p0) {
-            // println!( "  could move to {} at distance {:5} path {:26?} {:?}", c1, dist1, ks1, p1);
-            // Is this a good and novel way to get to c1?
-            let cbest = besties.entry(p1).or_default();
-            if *cbest.get(&ks1).unwrap_or(&std::usize::MAX) > dist1 {
-                // println!("    new better route to {} with {:30} of length {:6}", c1, ks1.key_chars(), dist1);
-                if ks1 == all_keys {
+    // Process things in generations that discover all shortest paths of the same
+    // length, going through any *gen* keys, and ending at each distinct key.
+    let mut queue: BTreeMap<(KeySet, Point), usize> = BTreeMap::new();
+    queue.insert((KeySet::new(), start), 0);
+    for gen in 1..=n_keys {
+        let mut next_queue: BTreeMap<(KeySet, Point), usize> = BTreeMap::new();
+        for ((ks0, p0), dist0) in queue.into_iter() {
+            for (dist1, ks1, _c1, p1) in reachable(&mat, dist0, &ks0, p0, &all_keys) {
+                debug_assert_eq!(gen, ks1.len());
+                if ks1.len() == n_keys {
                     best_overall = std::cmp::min(best_overall, dist1);
                 }
-                cbest.insert(ks1.clone(), dist1);
-                let newqent = (p1, ks1);
-                if !queue.contains(&newqent) {
-                    queue.push_back(newqent);
-                }
+                let newk = (ks1.clone(), p1);
+                match next_queue.entry(newk) {
+                    Entry::Vacant(v) => { v.insert(dist1);}
+                    Entry::Occupied(mut o) => {o.insert(std::cmp::min(* o.get(), dist1));}
+                };
             }
         }
-    }
-    println!("final best result: {}", best_overall);
-    let mut i = 0;
-    'a: for (c, cbest) in besties.iter() {
-        println!("c={:?}", c);
-        for (ks, dist) in cbest.iter() {
-            i += 1;
-            println!("  c={:?} ks={:30} dist={:6}", c, ks.key_chars(), dist);
-            if i > 200 { break 'a; };
-        }
-    }
-    for (pt, cbest) in besties.iter() {
-        println!("pt={:13?} cbest.len={:7}", pt, cbest.len());
+        println!("generation {}: next queue len {}", gen, next_queue.len());
+        queue = next_queue;
     }
     best_overall
 }
 
 /// Return a vec of (distance, keyset, key) for every new key reachable from
 /// p given current KeySet.
-fn reachable(mat: &Map, dist0: usize, ks: &KeySet, p: Point) -> Vec<(usize, KeySet, char, Point)> {
+fn reachable(
+    mat: &Map,
+    dist0: usize,
+    ks: &KeySet,
+    p: Point,
+    all_keys: &KeySet,
+) -> Vec<(usize, KeySet, char, Point)> {
     let mut queue = vec![p];
-    let mut seen = BTreeSet::new();
+    let mut seen = Matrix::new(mat.width(), mat.height(), false);
     let mut dist = dist0 + 1;
     let mut result = Vec::new();
-    while !queue.is_empty() {
+    let mut remaining_keys = all_keys.clone();
+    remaining_keys.subtract(&ks);
+    while !queue.is_empty() && !remaining_keys.is_empty() {
         // Find every as-yet-unvisited neighbor at this distance.
         let mut new_queue: Vec<Point> = Vec::new();
         for p1 in queue.into_iter() {
             for (p2, &c) in mat.neighbors4(p1) {
-                if c == WALL || !seen.insert(p2) {
+                if c == WALL || seen[p2] {
                     continue;
-                } else if c == PASSAGE || c == PLAYER || ks.contains(c.to_ascii_lowercase()) {
+                }
+                seen[p2] = true;
+                if c == PASSAGE || c == PLAYER || ks.contains(c) {
                     // Either empty, or we've already collected this key, or we have
                     // the key for this door.
                     new_queue.push(p2);
@@ -194,6 +177,7 @@ fn reachable(mat: &Map, dist0: usize, ks: &KeySet, p: Point) -> Vec<(usize, KeyS
                     let mut ks1 = ks.clone();
                     ks1.set(c);
                     result.push((dist, ks1, c, p2));
+                    remaining_keys.clear(c);
                 } else {
                     // A door for which we don't have the key.
                     debug_assert!(c.is_ascii_uppercase());
