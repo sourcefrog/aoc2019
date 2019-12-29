@@ -39,3 +39,41 @@ points (start, keys, doors), then find the best order to visit them all.
 
 As a meta point, getting a dumb solution to part A, so that I can see what's
 in part B, might work well.
+
+...
+
+This solution to part A works, but is slow. Part B is about solving several 
+mazes with doors coupled together.
+
+From any point we can flood-fill out to find all the keys you can directly 
+reach from that point, and their distance, given a set of currently-locked
+doors. And for that matter also all the doors you can reach.
+
+It seems it's only interesting to stop a move at a key, and so we're only
+interested in the shortest path from either the start, or one key, to the
+next key. But they may change depending on what other doors were already
+opened.
+
+The current code seems too slow for what it does... Perhaps because it's
+not really correctly keeping track of the best options found so far.
+
+Here's another way to put the simplification: we can measure the shortest paths
+between A and B, where A and B are each either the starting point, a key, or a
+door. The path only exists where there is a direct unobstructed path between
+them, with no keys or doors in the way. These distances won't change as we open
+doors. 
+
+Then we want to find an order to walk through the keys or gates, starting at 
+the start, with the constraint that we can only pass a gate after we previously
+took its keys. 
+
+## Take 3
+
+OK, new, hopefully simpler and more successful approach:
+
+Make a function that, from point *p*, given existing keys *ks*, returns
+every new key we can pick up, and the distance to it. Just do this by walking
+over the map.
+
+Then walk down through the tree that represents every available order in which 
+we can take keys. Whichever path is shortest is best.

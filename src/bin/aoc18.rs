@@ -1,12 +1,15 @@
-#![allow(unused_variables)]
+#![allow(dead_code, unused_variables, unused_imports)]
 
 use std::collections::btree_map::Entry;
 use std::collections::BTreeMap;
+use std::collections::BTreeSet;
 use std::fmt;
 
 use mbp_aoc2019::{Matrix, Point};
 
 type Map = Matrix<char>;
+
+type DistanceMap = BTreeMap<(char, char), usize>;
 
 const WALL: char = '#';
 const PASSAGE: char = '.';
@@ -17,13 +20,13 @@ pub fn main() {
 }
 
 #[derive(Eq, PartialEq, Ord, PartialOrd, Clone)]
-struct Keys {
+struct KeySet {
     u: u32,
 }
 
-impl Keys {
-    fn new() -> Keys {
-        Keys { u: 0 }
+impl KeySet {
+    fn new() -> KeySet {
+        KeySet { u: 0 }
     }
 
     fn offset(c: char) -> u32 {
@@ -32,16 +35,40 @@ impl Keys {
     }
 
     fn set(&mut self, c: char) {
-        self.u |= 1 << Keys::offset(c)
+        self.u |= 1 << KeySet::offset(c)
     }
 
     fn contains(&self, c: char) -> bool {
         let c = c.to_ascii_lowercase();
-        self.u & (1 << Keys::offset(c)) != 0
+        self.u & (1 << KeySet::offset(c)) != 0
+    }
+
+    fn len(&self) -> usize {
+        self.u.count_ones() as usize
+    }
+
+    fn key_chars(&self) -> String {
+        let mut s = String::with_capacity(26);
+        for i in 0..26 {
+            if self.u & (1 << i) != 0 {
+                s.push(std::char::from_u32('a' as u32 + i).unwrap())
+            }
+        }
+        s
+    }
+
+    fn door_chars(&self) -> String {
+        let mut s = String::with_capacity(26);
+        for i in 0..26 {
+            if self.u & (1 << i) != 0 {
+                s.push(std::char::from_u32('A' as u32 + i).unwrap())
+            }
+        }
+        s
     }
 }
 
-impl fmt::Debug for Keys {
+impl fmt::Debug for KeySet {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "\"")?;
         for i in 0..26 {
@@ -53,106 +80,83 @@ impl fmt::Debug for Keys {
         Ok(())
     }
 }
-/// Search state is represented by the sorted list of keys we've collected,
-/// the distance travelled, and the current position.
-#[derive(Eq, PartialEq, Debug, Clone)]
-struct State {
-    dist: isize,
-    // TODO: Could make it Rc; probably many of them are identitical...
-    keys: Keys,
-    p: Point,
+
+fn solve_a() -> usize {
+    solve_type_a(&std::fs::read_to_string("input/input18.txt").unwrap())
 }
 
-fn solve_a() -> isize {
-    let mat = Matrix::from_string_lines(&std::fs::read_to_string("input/input18.txt").unwrap());
-    let mut me = None;
-    let mut all_keys = Keys::new();
+fn solve_type_a(s: &str) -> usize {
+    let mat = Matrix::from_string_lines(s);
+    let mut start = None;
+    let mut n_keys = 0;
+    let mut all_keys = KeySet::new();
     for p in mat.iter_points() {
         let c = mat[p];
-        if c == PLAYER {
-            me = Some(p)
-        } else if c.is_ascii_lowercase() {
+        if c.is_ascii_lowercase() {
+            n_keys += 1;
             all_keys.set(c);
+        } else if c == PLAYER {
+            start = Some(p);
         }
     }
+    let start = start.unwrap();
 
-    let me = me.unwrap();
-    let initial = State {
-        keys: Keys::new(),
-        p: me,
-        dist: 0,
-    };
+    // The best-known distance and terminal point for any given keyset.
+    let mut best: usize = std::usize::MAX;
 
-    // Queue of candidate states to check, sorted with the shortest live paths to the end.
-    let mut queue = Vec::<(isize, State)>::new();
-    queue.push((0, initial));
-
-    // Spaces we've already visited and the shortest known distance.
-    let mut best = BTreeMap::<(Point, Keys), isize>::new();
-    best.insert((me, Keys::new()), 0);
-
-    while let Some((d, st)) = queue.pop() {
-        // println!("pop from queue to visit {:?}", st);
-        // Consider every possible neighbor; skip them if we already know a shorter
-        // path there.
-        for newstate in neighbors(&mat, &st) {
-            // println!("can move from {:?} to {:?}", st.p, newstate);
-            // Do we already know a shorter path there?
-            match best.entry((newstate.p, newstate.keys.clone())) {
-                Entry::Vacant(v) => {
-                    v.insert(newstate.dist);
-                }
-                Entry::Occupied(mut o) => {
-                    if *o.get() <= newstate.dist {
-                        continue;
-                    } else {
-                        o.insert(newstate.dist);
-                    }
-                }
-            }
-            // Since we found a new or shorter path, we need to look at continuations from it
-            // later.
-            // println!("queue to visit {:?}", &newstate);
-            if newstate.keys == all_keys {
-                return newstate.dist;
-            }
-            queue.push((newstate.dist, newstate));
+    let mut queue: Vec<(usize, KeySet, Point)> = vec![(0, KeySet::new(), start)];
+    let mut i = 0;
+    while let Some((dist0, ks0, p0)) = queue.pop() {
+        i += 1;
+        if i % 1000 == 0 {
+            println!("considered {:8} paths, queue length {}", i, queue.len());
         }
-        // Sort with the shortest explored paths to the end.
-        queue.sort_by_key(|(dist, state)| -dist);
-        //  println!("queue length {}", queue.len());
+        // println!( "looking at distance      {:5} path {:26?} {:?}", dist0, ks0, p0);
+        for (dist1, ks1, p1) in reachable(&mat, dist0, &ks0, p0) {
+            // println!( "  could move to distance {:5} path {:26?} {:?}", dist1, ks1, p1);
+            if ks1 == all_keys {
+                best = std::cmp::min(best, dist1);
+            }
+            queue.push((dist1, ks1, p1));
+        }
     }
-    unreachable!()
+    best
 }
 
-fn neighbors(mat: &Map, state: &State) -> Vec<State> {
-    let mut v = Vec::new();
-    let p = state.p;
-    for &p in &[p.left(), p.right(), p.up(), p.down()] {
-        if let Some(c) = mat.try_get(p) {
-            let mut keys = state.keys.clone();
-            if c == WALL {
-                continue;
-            } else if c == PASSAGE || c == PLAYER {
-            } else if c.is_ascii_uppercase() {
-                // A door: can we pass it?
-                if !state.keys.contains(c) {
+/// Return a vec of (distance, keyset, pos) for every new key reachable from
+/// p given current KeySet.
+fn reachable(mat: &Map, dist0: usize, ks: &KeySet, p: Point) -> Vec<(usize, KeySet, Point)> {
+    let mut queue = vec![p];
+    let mut seen = BTreeSet::new();
+    let mut dist = dist0 + 1;
+    let mut result = Vec::new();
+    while !queue.is_empty() {
+        // Find every as-yet-unvisited neighbor at this distance.
+        let mut new_queue: Vec<Point> = Vec::new();
+        for p1 in queue.into_iter() {
+            for (p2, &c) in mat.neighbors4(p1) {
+                if c == WALL || !seen.insert(p2) {
                     continue;
                 }
-            } else if c.is_ascii_lowercase() {
-                // println!("collect key {} at {:?}", c, &p);
-                keys.set(c);
-            } else {
-                panic!("unexpected {:?} at {:?}", c, state);
+                if c == PASSAGE || c == PLAYER || ks.contains(c.to_ascii_lowercase()) {
+                    // Either empty, or we've already collected this key, or we have
+                    // the key for this door.
+                    new_queue.push(p2);
+                } else if c.is_ascii_lowercase() {
+                    // Found a new key. Take this; can't go further.
+                    let mut ks1 = ks.clone();
+                    ks1.set(c);
+                    result.push((dist, ks1, p2));
+                } else {
+                    // A door for which we don't have the key.
+                    debug_assert!(c.is_ascii_uppercase());
+                }
             }
-            v.push(State {
-                p,
-                keys,
-                dist: state.dist + 1,
-            })
         }
+        queue = new_queue;
+        dist += 1;
     }
-    v
+    result
 }
 
 #[cfg(test)]
@@ -162,5 +166,74 @@ mod test {
     #[test]
     fn solution_a() {
         assert_eq!(solve_a(), 4204);
+    }
+
+    #[test]
+    fn example_1() {
+        assert_eq!(
+            solve_type_a(
+                "\
+########################
+#f.D.E.e.C.b.A.@.a.B.c.#
+######################.#
+#d.....................#
+########################
+"
+            ),
+            86
+        );
+    }
+
+    #[test]
+    fn example_2() {
+        assert_eq!(
+            solve_type_a(
+                "\
+########################
+#...............b.C.D.f#
+#.######################
+#.....@.a.B.c.d.A.e.F.g#
+########################
+"
+            ),
+            132
+        );
+    }
+
+    #[test]
+    fn example_3() {
+        assert_eq!(
+            solve_type_a(
+                "\
+#################
+#i.G..c...e..H.p#
+########.########
+#j.A..b...f..D.o#
+########@########
+#k.E..a...g..B.n#
+########.########
+#l.F..d...h..C.m#
+#################
+"
+            ),
+            136
+        );
+    }
+
+    #[test]
+    fn example_4() {
+        assert_eq!(
+            solve_type_a(
+                "\
+########################
+#@..............ac.GI.b#
+###d#e#f################
+###A#B#C################
+###g#h#i################
+########################
+"
+            ),
+            81
+        );
     }
 }
