@@ -51,8 +51,7 @@ fn solve_b() -> isize {
     cpu.push_input_string("R,6,R,10,L,10\n");
     cpu.push_input_string("R,10,L,10,L,12,R,6\n");
     cpu.push_input_string("1\n");
-    let score = cpu.interact().unwrap_or(0);
-    score
+    cpu.interact().unwrap_or(0)
 }
 
 fn load_map() -> Matrix<char> {
