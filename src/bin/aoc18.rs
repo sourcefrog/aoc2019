@@ -67,6 +67,10 @@ impl KeySet {
         }
         s
     }
+
+    fn is_subset_of(&self, other: &KeySet) -> bool {
+        self.u & other.u == self.u 
+    }
 }
 
 impl fmt::Debug for KeySet {
@@ -152,6 +156,18 @@ fn solve_type_a(s: &str) -> usize {
         }
     }
     println!("final best result: {}", best_overall);
+    let mut i = 0;
+    'a: for (c, cbest) in besties.iter() {
+        println!("c={:?}", c);
+        for (ks, dist) in cbest.iter() {
+            i += 1;
+            println!("  c={:?} ks={:30} dist={:6}", c, ks.key_chars(), dist);
+            if i > 200 { break 'a; };
+        }
+    }
+    for (pt, cbest) in besties.iter() {
+        println!("pt={:13?} cbest.len={:7}", pt, cbest.len());
+    }
     best_overall
 }
 
