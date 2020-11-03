@@ -50,17 +50,14 @@ const SQUARE: isize = 100;
 /// Bisect through rows, finding the size of the square starting on that row
 /// that fits in the beam, until we find the smallest adequate answer.
 fn solve_type_b(program: &Computer) -> isize {
-    let mut min_first = 0;
     let mut min_last = 0;
     for y in 0.. {
         // dbg!(y);
-        // Is anything lit on this row, and if so where does it start?
-        if let Some(top_first) = first_lit(program, min_first, y) {
-            let top_last = last_lit(program, max(top_first, min_last), y);
-            min_first = top_first; // No need to look left of this on later rows
+        // Is anything lit on this row, and if so where's the rightmost lit cell?
+        if let Some(top_last) = last_lit(program, min_last, y) {
             min_last = top_last;
             let square_x = top_last - SQUARE + 1;
-            if square_x < top_first {
+            if square_x < 0 || !is_lit(program, square_x, y) {
                 // Not even enough room on this row
                 continue;
             }
@@ -71,34 +68,28 @@ fn solve_type_b(program: &Computer) -> isize {
                 debug_assert!(is_lit(program, square_x + SQUARE - 1, y + SQUARE - 1));
                 return square_x * 10_000 + y;
             }
+            // CAUTION: There's a theoretical bug here where we find a square that's
+            // on the correct row, but too far to the right, and by moving one square
+            // left we'd also match. However, this doesn't occur on the problem input
+            // due to the slope of the lines.
         }
     }
     unreachable!()
 }
 
-/// Return the x coordinate of the first lit cell in row Y, at at least min_x, if any.
-fn first_lit(program: &Computer, min_x: isize, y: isize) -> Option<isize> {
-    // Some rows have nothing lit, so we have a kinda kludgey assumption that we will find
-    // nothing too far to the right of the unit slope.
-    for x in min_x..max(10, 2 * y) {
+/// Find the x coordinate of the last lit cell in row Y. Start searching at
+/// `min_x`.
+fn last_lit(program: &Computer, min_x: isize, y: isize) -> Option<isize> {
+    // kludge around empty rows near the start
+    let mut last_lit: Option<isize> = None;
+    for x in min_x..max(y * 2, 20) {
         if is_lit(program, x, y) {
-            return Some(x);
+            last_lit = Some(x);
+        } else if last_lit.is_some() {
+            return last_lit;
         }
     }
     None
-}
-
-/// Find the x coordinate of the last lit cell in row Y, guaranteed to be at least
-/// min_x, and where min_x is guaranteed to be lit.
-fn last_lit(program: &Computer, min_x: isize, y: isize) -> isize {
-    debug_assert!(is_lit(program, min_x, y), "{}, {} is not lit", min_x, y);
-    for x in (min_x + 1).. {
-        if !is_lit(program, x, y) {
-            debug_assert!(x > min_x);
-            return x - 1;
-        }
-    }
-    unreachable!()
 }
 
 /// True if the cell at (x, y) is lit.
