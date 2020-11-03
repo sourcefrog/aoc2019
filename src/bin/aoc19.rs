@@ -30,3 +30,13 @@ fn solve_a() -> usize {
     }
     tracted
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn solution_a() {
+        assert_eq!(solve_a(), 150);
+    }
+}
