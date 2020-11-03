@@ -18,19 +18,22 @@ struct IdentParser;
 type Chemical = String;
 #[derive(Debug, Eq, PartialEq, Ord, PartialOrd, Clone)]
 struct Quantity {
-    n: usize,
-    ident: Chemical,
+    n: u64,
+    chemical: Chemical,
 }
 
 #[derive(Eq, PartialEq, Debug, Ord, PartialOrd, Clone)]
 struct Recipe {
-    ingredients: BTreeMap<Chemical, usize>,
+    ingredients: BTreeMap<Chemical, u64>,
     product: Quantity,
 }
 
+/// Map from chemical produced to recipe.
+type RecipeMap = BTreeMap<Chemical, Recipe>;
+
 impl Recipe {
     fn product_ident(&self) -> &str {
-        &self.product.ident
+        &self.product.chemical
     }
 
     fn uses(&self, chemical: &str) -> bool {
@@ -52,11 +55,11 @@ fn parse_quantity(p: Pair<Rule>) -> Quantity {
     }
     Quantity {
         n: n.unwrap(),
-        ident: ident.unwrap(),
+        chemical: ident.unwrap(),
     }
 }
 
-fn parse_ingredients(p: Pair<Rule>) -> BTreeMap<Chemical, usize> {
+fn parse_ingredients(p: Pair<Rule>) -> BTreeMap<Chemical, u64> {
     let mut v = BTreeMap::new();
     assert_eq!(p.as_rule(), Rule::ingredients);
     // dbg!(&p);
@@ -64,7 +67,7 @@ fn parse_ingredients(p: Pair<Rule>) -> BTreeMap<Chemical, usize> {
         if i.as_rule() == Rule::quantity {
             // dbg!(&i);
             let qty = parse_quantity(i);
-            let present = v.insert(qty.ident, qty.n).is_some();
+            let present = v.insert(qty.chemical, qty.n).is_some();
             debug_assert!(!present, "chemical occurred twice in ingredient list?");
         }
     }
@@ -72,18 +75,18 @@ fn parse_ingredients(p: Pair<Rule>) -> BTreeMap<Chemical, usize> {
     v
 }
 
-fn load() -> Vec<Recipe> {
+fn load() -> RecipeMap {
     parse(&std::fs::read_to_string("input/input14.txt").unwrap())
 }
 
-fn parse(s: &str) -> Vec<Recipe> {
+fn parse(s: &str) -> RecipeMap {
     let mut f = IdentParser::parse(Rule::recipe_list, &s).unwrap_or_else(|e| panic!("{}", e));
-    let mut recipes = Vec::new();
-    for recipe in f.next().unwrap().into_inner() {
+    let mut recipes = BTreeMap::new();
+    for recipe_span in f.next().unwrap().into_inner() {
         let mut ingredients = BTreeMap::new();
         let mut product = None;
         // println!("Rule:    {:?}", recipe.as_str());
-        for ip in recipe.into_inner() {
+        for ip in recipe_span.into_inner() {
             match ip.as_rule() {
                 Rule::ingredients => {
                     // println!("Ingredients: {}", ip.as_str());
@@ -95,30 +98,39 @@ fn parse(s: &str) -> Vec<Recipe> {
                 _ => println!("Other: {}", ip.as_str()),
             }
         }
-
-        recipes.push(Recipe {
-            ingredients,
-            product: product.unwrap(),
-        });
+        let product = product.expect("No product found");
+        let already_present = recipes
+            .insert(
+                product.chemical.clone(),
+                Recipe {
+                    product,
+                    ingredients,
+                },
+            )
+            .is_some();
+        debug_assert!(!already_present);
     }
     recipes
 }
 
-fn solve_a() -> usize {
-    solve_type_a(&load())
+fn solve_a() -> u64 {
+    solve_type_a(load())
 }
 
-fn solve_type_a(rs: &[Recipe]) -> usize {
-    // needed is the number of units of each type we currently know we need.
-    let mut needed = BTreeMap::<String, usize>::new();
+fn solve_type_a(rs: RecipeMap) -> u64 {
+    make_n_fuel(rs, 1)
+}
+
+fn solve_type_b(rm: RecipeMap) -> u64 {
+    todo!()
+}
+
+/// Returns the amount of ORE required to make n_fuel FUEL.
+fn make_n_fuel(mut rs: RecipeMap, n_fuel: u64) -> u64 {
+    // `needed` is the number of units of each type we currently know we need.
+    let mut needed = BTreeMap::<Chemical, u64>::new();
     dbg!(&rs);
-    // Make a copy of the recipes so they can be removed as they're used
-    let mut rs: BTreeMap<Chemical, Recipe> = rs
-        .iter()
-        .cloned()
-        .map(|recipe| (recipe.product.ident.clone(), recipe))
-        .collect();
-    needed.insert("FUEL".to_string(), 1);
+    needed.insert("FUEL".to_string(), n_fuel);
 
     loop {
         if needed.len() == 1 && needed.keys().next().unwrap() == "ORE" {
@@ -132,9 +144,10 @@ fn solve_type_a(rs: &[Recipe]) -> usize {
             .unwrap()
             .clone();
         println!("{} can be removed next", next_chemical);
+        dbg!(&rs);
         let next_recipe = rs.remove(&next_chemical).unwrap();
         println!("remove recipe {:?}", next_recipe);
-        debug_assert_eq!(&next_recipe.product.ident, &next_chemical);
+        debug_assert_eq!(&next_recipe.product.chemical, &next_chemical);
         let t_ident = next_recipe.product_ident();
 
         if let Some(needed_count) = needed.remove(&next_chemical) {
@@ -161,6 +174,50 @@ fn solve_type_a(rs: &[Recipe]) -> usize {
 mod test {
     use super::*;
 
+    const TRILLION: u64 = 1_000_000_000_000;
+
+    const RECIPE_13312: &str = "157 ORE => 5 NZVS
+    165 ORE => 6 DCFZ
+    44 XJWVT, 5 KHKGT, 1 QDVJ, 29 NZVS, 9 GPVTF, 48 HKGWZ => 1 FUEL
+    12 HKGWZ, 1 GPVTF, 8 PSHF => 9 QDVJ
+    179 ORE => 7 PSHF
+    177 ORE => 5 HKGWZ
+    7 DCFZ, 7 PSHF => 2 XJWVT
+    165 ORE => 2 GPVTF
+    3 DCFZ, 7 NZVS, 5 HKGWZ, 10 PSHF => 8 KHKGT";
+
+    const RECIPE_180697: &str = "2 VPVL, 7 FWMGM, 2 CXFTF, 11 MNCFX => 1 STKFG
+    17 NVRVD, 3 JNWZP => 8 VPVL
+    53 STKFG, 6 MNCFX, 46 VJHF, 81 HVMC, 68 CXFTF, 25 GNMV => 1 FUEL
+    22 VJHF, 37 MNCFX => 5 FWMGM
+    139 ORE => 4 NVRVD
+    144 ORE => 7 JNWZP
+    5 MNCFX, 7 RFSQX, 2 FWMGM, 2 VPVL, 19 CXFTF => 3 HVMC
+    5 VJHF, 7 MNCFX, 9 VPVL, 37 CXFTF => 6 GNMV
+    145 ORE => 6 MNCFX
+    1 NVRVD => 8 CXFTF
+    1 VJHF, 6 MNCFX => 4 RFSQX
+    176 ORE => 6 VJHF";
+
+    const RECIPE_2210736: &str = "171 ORE => 8 CNZTR
+    7 ZLQW, 3 BMBT, 9 XCVML, 26 XMNCP, 1 WPTQ, 2 MZWV, 1 RJRHP => 4 PLWSL
+    114 ORE => 4 BHXH
+    14 VRPVC => 6 BMBT
+    6 BHXH, 18 KTJDG, 12 WPTQ, 7 PLWSL, 31 FHTLT, 37 ZDVW => 1 FUEL
+    6 WPTQ, 2 BMBT, 8 ZLQW, 18 KTJDG, 1 XMNCP, 6 MZWV, 1 RJRHP => 6 FHTLT
+    15 XDBXC, 2 LTCX, 1 VRPVC => 6 ZLQW
+    13 WPTQ, 10 LTCX, 3 RJRHP, 14 XMNCP, 2 MZWV, 1 ZLQW => 1 ZDVW
+    5 BMBT => 4 WPTQ
+    189 ORE => 9 KTJDG
+    1 MZWV, 17 XDBXC, 3 XCVML => 2 XMNCP
+    12 VRPVC, 27 CNZTR => 2 XDBXC
+    15 KTJDG, 12 BHXH => 5 XCVML
+    3 BHXH, 2 VRPVC => 7 MZWV
+    121 ORE => 7 VRPVC
+    7 XCVML => 6 RJRHP
+    5 BHXH, 4 VRPVC => 5 LTCX
+    ";
+
     #[test]
     fn parse_input() {
         assert_eq!(load().len(), 60);
@@ -169,7 +226,7 @@ mod test {
     #[test]
     fn example_1() {
         assert_eq!(
-            solve_type_a(&parse(
+            solve_type_a(parse(
                 "\
                     10 ORE => 10 A
                     1 ORE => 1 B
@@ -186,5 +243,25 @@ mod test {
     #[test]
     fn solution_a() {
         assert_eq!(solve_a(), 178_154)
+    }
+
+    #[test]
+    fn example_b_1() {
+        let ore_required = make_n_fuel(parse(RECIPE_13312), 82892753);
+        dbg!(ore_required);
+        assert!(ore_required < TRILLION);
+    }
+
+    #[test]
+    fn example_b_2() {
+        let ore_required = make_n_fuel(parse(RECIPE_180697), 5586022);
+        dbg!(ore_required);
+        assert!(ore_required < TRILLION);
+    }
+    #[test]
+    fn example_b_3() {
+        let ore_required = make_n_fuel(parse(RECIPE_2210736), 460664);
+        dbg!(ore_required);
+        assert!(ore_required < TRILLION);
     }
 }
