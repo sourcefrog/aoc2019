@@ -7,8 +7,19 @@ extern crate pest_derive;
 use pest::iterators::Pair;
 use pest::Parser;
 
+const TRILLION: u64 = 1_000_000_000_000;
+
 pub fn main() {
     println!("14a: {}", solve_a());
+    println!("14b: {}", solve_b());
+}
+
+fn solve_a() -> u64 {
+    solve_type_a(load())
+}
+
+fn solve_b() -> u64 {
+    solve_type_b(load())
 }
 
 #[derive(Parser)]
@@ -32,10 +43,6 @@ struct Recipe {
 type RecipeMap = BTreeMap<Chemical, Recipe>;
 
 impl Recipe {
-    fn product_ident(&self) -> &str {
-        &self.product.chemical
-    }
-
     fn uses(&self, chemical: &str) -> bool {
         self.ingredients.contains_key(chemical)
     }
@@ -113,59 +120,61 @@ fn parse(s: &str) -> RecipeMap {
     recipes
 }
 
-fn solve_a() -> u64 {
-    solve_type_a(load())
-}
-
 fn solve_type_a(rs: RecipeMap) -> u64 {
     make_n_fuel(rs, 1)
 }
 
+/// Find by bisection the amount of fuel that can be produced by a TRILLION ORE.
 fn solve_type_b(rm: RecipeMap) -> u64 {
-    todo!()
+    // An amount of fuel that we know can be produced.
+    let mut low_bound: u64 = 1;
+    // An amount of fuel that's more than we can produce.
+    let mut high_bound: u64 = TRILLION;
+    while low_bound + 1 != high_bound {
+        let guess = (low_bound + high_bound) / 2;
+        if make_n_fuel(rm.clone(), guess) > TRILLION {
+            high_bound = guess
+        } else {
+            low_bound = guess
+        }
+    }
+    low_bound
+}
+
+/// True if any recipe in this map uses this chemical.
+fn any_recipe_uses(rm: &RecipeMap, chemical: &Chemical) -> bool {
+    rm.values().any(|r| r.uses(chemical))
 }
 
 /// Returns the amount of ORE required to make n_fuel FUEL.
 fn make_n_fuel(mut rs: RecipeMap, n_fuel: u64) -> u64 {
     // `needed` is the number of units of each type we currently know we need.
     let mut needed = BTreeMap::<Chemical, u64>::new();
-    dbg!(&rs);
     needed.insert("FUEL".to_string(), n_fuel);
 
     loop {
-        if needed.len() == 1 && needed.keys().next().unwrap() == "ORE" {
-            return *needed.values().next().unwrap();
+        if needed.len() == 1 {
+            if let Some(needed_ore) = needed.get("ORE") {
+                return *needed_ore;
+            }
         }
         // Find a thing we need, that's not itself an ingredient for any remaining recipe.
         let next_chemical = needed
             .keys()
-            .inspect(|t| println!("check {}", t))
-            .find(|t| !rs.values().any(|r| r.uses(t)))
+            .find(|chemical| !any_recipe_uses(&rs, chemical))
             .unwrap()
             .clone();
-        println!("{} can be removed next", next_chemical);
-        dbg!(&rs);
         let next_recipe = rs.remove(&next_chemical).unwrap();
-        println!("remove recipe {:?}", next_recipe);
         debug_assert_eq!(&next_recipe.product.chemical, &next_chemical);
-        let t_ident = next_recipe.product_ident();
 
+        // If none of this chemical is needed, that's ok, we can still remove it from
+        // the active list. Otherwise, calculate the right amount to make.
         if let Some(needed_count) = needed.remove(&next_chemical) {
             let recipe_count = next_recipe.product.n;
-            let make = needed_count / recipe_count
-                + if (needed_count % recipe_count) > 0 {
-                    1
-                } else {
-                    0
-                };
-            println!(
-                "need {} {}; recipe makes {}; make {}",
-                needed_count, t_ident, recipe_count, make
-            );
+            let make = (needed_count + recipe_count - 1) / recipe_count;
             for (chemical, n) in next_recipe.ingredients.into_iter() {
                 *needed.entry(chemical).or_default() += make * n;
             }
-            println!("now needed queue is {:?}", needed);
         }
     }
 }
@@ -173,8 +182,6 @@ fn make_n_fuel(mut rs: RecipeMap, n_fuel: u64) -> u64 {
 #[cfg(test)]
 mod test {
     use super::*;
-
-    const TRILLION: u64 = 1_000_000_000_000;
 
     const RECIPE_13312: &str = "157 ORE => 5 NZVS
     165 ORE => 6 DCFZ
@@ -263,5 +270,10 @@ mod test {
         let ore_required = make_n_fuel(parse(RECIPE_2210736), 460664);
         dbg!(ore_required);
         assert!(ore_required < TRILLION);
+    }
+
+    #[test]
+    fn solution_b() {
+        assert_eq!(solve_b(), 6226152);
     }
 }
