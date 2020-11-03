@@ -15,15 +15,16 @@ pub fn main() {
 #[grammar = "pest/aoc14.pest"]
 struct IdentParser;
 
-#[derive(Debug, Eq, PartialEq, Ord, PartialOrd)]
+type Chemical = String;
+#[derive(Debug, Eq, PartialEq, Ord, PartialOrd, Clone)]
 struct Quantity {
     n: usize,
-    ident: String,
+    ident: Chemical,
 }
 
-#[derive(Eq, PartialEq, Debug, Ord, PartialOrd)]
+#[derive(Eq, PartialEq, Debug, Ord, PartialOrd, Clone)]
 struct Recipe {
-    ingredients: Vec<Quantity>,
+    ingredients: BTreeMap<Chemical, usize>,
     product: Quantity,
 }
 
@@ -32,10 +33,8 @@ impl Recipe {
         &self.product.ident
     }
 
-    fn uses(&self, ingredient_ident: &str) -> bool {
-        self.ingredients
-            .iter()
-            .any(|ing| ing.ident == ingredient_ident)
+    fn uses(&self, chemical: &str) -> bool {
+        self.ingredients.contains_key(chemical)
     }
 }
 
@@ -57,14 +56,16 @@ fn parse_quantity(p: Pair<Rule>) -> Quantity {
     }
 }
 
-fn parse_ingredients(p: Pair<Rule>) -> Vec<Quantity> {
-    let mut v = Vec::new();
+fn parse_ingredients(p: Pair<Rule>) -> BTreeMap<Chemical, usize> {
+    let mut v = BTreeMap::new();
     assert_eq!(p.as_rule(), Rule::ingredients);
     // dbg!(&p);
     for i in p.into_inner().flatten() {
         if i.as_rule() == Rule::quantity {
             // dbg!(&i);
-            v.push(parse_quantity(i));
+            let qty = parse_quantity(i);
+            let present = v.insert(qty.ident, qty.n).is_some();
+            debug_assert!(!present, "chemical occurred twice in ingredient list?");
         }
     }
     // dbg!(&v);
@@ -79,7 +80,7 @@ fn parse(s: &str) -> Vec<Recipe> {
     let mut f = IdentParser::parse(Rule::recipe_list, &s).unwrap_or_else(|e| panic!("{}", e));
     let mut recipes = Vec::new();
     for recipe in f.next().unwrap().into_inner() {
-        let mut ingredients = vec![];
+        let mut ingredients = BTreeMap::new();
         let mut product = None;
         // println!("Rule:    {:?}", recipe.as_str());
         for ip in recipe.into_inner() {
@@ -104,13 +105,19 @@ fn parse(s: &str) -> Vec<Recipe> {
 }
 
 fn solve_a() -> usize {
-    solve_type_a(load())
+    solve_type_a(&load())
 }
 
-fn solve_type_a(mut rs: Vec<Recipe>) -> usize {
+fn solve_type_a(rs: &[Recipe]) -> usize {
     // needed is the number of units of each type we currently know we need.
     let mut needed = BTreeMap::<String, usize>::new();
     dbg!(&rs);
+    // Make a copy of the recipes so they can be removed as they're used
+    let mut rs: BTreeMap<Chemical, Recipe> = rs
+        .iter()
+        .cloned()
+        .map(|recipe| (recipe.product.ident.clone(), recipe))
+        .collect();
     needed.insert("FUEL".to_string(), 1);
 
     loop {
@@ -118,23 +125,20 @@ fn solve_type_a(mut rs: Vec<Recipe>) -> usize {
             return *needed.values().next().unwrap();
         }
         // Find a thing we need, that's not itself an ingredient for any remaining recipe.
-        let t_ident = needed
+        let next_chemical = needed
             .keys()
             .inspect(|t| println!("check {}", t))
-            .find(|t| !rs.iter().any(|r| r.uses(t)))
-            .unwrap();
-        println!("{} can be removed next", t_ident);
-        let t_pos = rs
-            .iter()
-            .map(Recipe::product_ident)
-            .position(|i| i == t_ident)
-            .unwrap();
-        let t_recipe = rs.swap_remove(t_pos);
-        println!("remove recipe {:?}", t_recipe);
-        let t_ident = t_recipe.product_ident();
+            .find(|t| !rs.values().any(|r| r.uses(t)))
+            .unwrap()
+            .clone();
+        println!("{} can be removed next", next_chemical);
+        let next_recipe = rs.remove(&next_chemical).unwrap();
+        println!("remove recipe {:?}", next_recipe);
+        debug_assert_eq!(&next_recipe.product.ident, &next_chemical);
+        let t_ident = next_recipe.product_ident();
 
-        if let Some(needed_count) = needed.remove(t_ident) {
-            let recipe_count = t_recipe.product.n;
+        if let Some(needed_count) = needed.remove(&next_chemical) {
+            let recipe_count = next_recipe.product.n;
             let make = needed_count / recipe_count
                 + if (needed_count % recipe_count) > 0 {
                     1
@@ -145,8 +149,8 @@ fn solve_type_a(mut rs: Vec<Recipe>) -> usize {
                 "need {} {}; recipe makes {}; make {}",
                 needed_count, t_ident, recipe_count, make
             );
-            for iqty in t_recipe.ingredients.into_iter() {
-                *needed.entry(iqty.ident).or_default() += make * iqty.n;
+            for (chemical, n) in next_recipe.ingredients.into_iter() {
+                *needed.entry(chemical).or_default() += make * n;
             }
             println!("now needed queue is {:?}", needed);
         }
@@ -165,7 +169,7 @@ mod test {
     #[test]
     fn example_1() {
         assert_eq!(
-            solve_type_a(parse(
+            solve_type_a(&parse(
                 "\
                     10 ORE => 10 A
                     1 ORE => 1 B
