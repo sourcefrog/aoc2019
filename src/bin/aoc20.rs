@@ -14,28 +14,46 @@ type Label = String;
 
 pub fn main() {
     println!("20a: {}", solve_a());
+    println!("20b: {}", solve_b());
 }
 
 fn solve_a() -> isize {
-    MapLevel::from_input_file().single_level_path()
+    Maze::from_input_file().single_level_path()
+}
+
+fn solve_b() -> isize {
+    Maze::from_input_file().multi_level_path()
 }
 
 /// Describes one level of the possibly-recursive map.
-struct MapLevel {
+struct Maze {
     /// Character-matrix representation.
     matrix: Matrix<char>,
 
-    /// Map from the two-letter labels to the labelled positions/s on the map.
+    /// Map from the two-letter labels to the labelled positions/s on the maze.
     /// (For AA and ZZ there should be only one labelled point; for everything else
     /// there should be two.)
     labels: BTreeMap<Label, Vec<Point>>,
 
     /// For twinned portals, a symmetric map from the entry to the exit.
     warps: BTreeMap<Point, Point>,
+
+    /// Points on the inside that connect downward to a smaller maze.
+    warp_down: BTreeMap<Point, Point>,
+    warp_up: BTreeMap<Point, Point>,
 }
 
-impl MapLevel {
-    pub fn from_string(s: &str) -> MapLevel {
+/// A point in 3d-space
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
+struct Point3 {
+    /// Depth into the maze, where the entrance and exit are at 0
+    depth: isize,
+    x: isize,
+    y: isize,
+}
+
+impl Maze {
+    pub fn from_string(s: &str) -> Maze {
         let matrix = Matrix::from_string_lines(s);
         let labels = find_labels(&matrix);
         let mut warps = BTreeMap::new();
@@ -50,19 +68,37 @@ impl MapLevel {
             let exists = warps.insert(points[1], points[0]).is_some();
             assert!(!exists);
         }
-        MapLevel {
+        let mut warp_down = BTreeMap::new();
+        let mut warp_up = BTreeMap::new();
+        // Coordinates for the outer ring
+        let top = 2;
+        let bottom = (matrix.height() - 3) as isize;
+        let left = 2;
+        let right = (matrix.width() - 3) as isize;
+        let is_outside = |p: &Point| p.y == top || p.y == bottom || p.x == left || p.x == right;
+        for (p1, p2) in &warps {
+            assert!(is_outside(p1) != is_outside(p2));
+            if is_outside(p1) {
+                warp_up.insert(*p1, *p2);
+            } else {
+                warp_down.insert(*p1, *p2);
+            }
+        }
+        Maze {
             matrix,
             labels,
             warps,
+            warp_down,
+            warp_up,
         }
     }
 
-    pub fn from_file(path: &str) -> MapLevel {
-        MapLevel::from_string(&std::fs::read_to_string(path).unwrap())
+    pub fn from_file(path: &str) -> Maze {
+        Maze::from_string(&std::fs::read_to_string(path).unwrap())
     }
 
-    pub fn from_input_file() -> MapLevel {
-        MapLevel::from_file("input/input20.txt")
+    pub fn from_input_file() -> Maze {
+        Maze::from_file("input/input20.txt")
     }
 
     /// Find the entry or exit portal.
@@ -78,11 +114,29 @@ impl MapLevel {
         self.find_single_portal("AA")
     }
 
+    fn entrance3(&self) -> Point3 {
+        let p = self.entrance();
+        Point3 {
+            depth: 0,
+            x: p.x,
+            y: p.y,
+        }
+    }
+
     fn exit(&self) -> Point {
         self.find_single_portal("ZZ")
     }
 
-    /// Return the neighbors of point `p` in a single-level map.
+    fn exit3(&self) -> Point3 {
+        let p = self.exit();
+        Point3 {
+            depth: 0,
+            x: p.x,
+            y: p.y,
+        }
+    }
+
+    /// Return the neighbors of point `p` in a single-level maze.
     ///
     /// `p` must be a passage square.
     ///
@@ -103,10 +157,66 @@ impl MapLevel {
         n
     }
 
-    /// Find the length of the shortest path from AA to ZZ in a single-level map.
+    /// Return the neighbors of point `p` in a multi-level maze.
+    ///
+    /// They are: every direct neighbor at the same depth, plus traversal
+    /// downwards through the inner warps, and upward through the outer warps.
+    fn multi_level_neighbors(&self, p3: Point3) -> Vec<(Point3, isize)> {
+        let flatp = point(p3.x, p3.y);
+        let depth = p3.depth;
+        let mut n: Vec<(Point3, isize)> = self
+            .matrix
+            .neighbors4(flatp)
+            .into_iter()
+            .filter(|(_, c1)| **c1 == PASSAGE)
+            .map(|(p1, _)| {
+                (
+                    Point3 {
+                        x: p1.x,
+                        y: p1.y,
+                        depth,
+                    },
+                    1,
+                )
+            })
+            .collect();
+        // if let Some(out_p) = self.warps.get(&p) { n.push((*out_p, 1)) }
+        if depth > 0 {
+            if let Some(out) = self.warp_up.get(&flatp) {
+                n.push((
+                    Point3 {
+                        depth: depth - 1,
+                        x: out.x,
+                        y: out.y,
+                    },
+                    1,
+                ));
+            }
+        }
+        if let Some(down) = self.warp_down.get(&flatp) {
+            n.push((
+                Point3 {
+                    depth: depth + 1,
+                    x: down.x,
+                    y: down.y,
+                },
+                1,
+            ));
+        }
+        n
+    }
+
+    /// Find the length of the shortest path from AA to ZZ in a single-level maze.
     fn single_level_path(&self) -> isize {
         shortest_distance(self.entrance(), self.exit(), &mut |p| {
             self.single_level_neighbors(p)
+        })
+    }
+
+    /// Find the shortest path in a recursive multi-level maze.
+    fn multi_level_path(&self) -> isize {
+        shortest_distance(self.entrance3(), self.exit3(), &mut |p3| {
+            self.multi_level_neighbors(p3)
         })
     }
 }
@@ -167,15 +277,22 @@ mod test {
     use super::*;
 
     #[test]
+    fn load_map() {
+        let map = Maze::from_input_file();
+        assert_eq!(map.entrance(), point(49, 2));
+        assert_eq!(map.exit(), point(37, 106));
+    }
+
+    #[test]
     fn example_a_1_without_warps() {
-        let mut map = MapLevel::from_file("input/example_20_1.txt");
+        let mut map = Maze::from_file("input/example_20_1.txt");
         map.warps.clear();
         assert_eq!(map.single_level_path(), 26);
     }
 
     #[test]
     fn example_a_1_new() {
-        let map = MapLevel::from_file("input/example_20_1.txt");
+        let map = Maze::from_file("input/example_20_1.txt");
         assert_eq!(
             *map.labels.get("BC").unwrap(),
             vec![point(9, 6), point(2, 8)]
@@ -188,7 +305,7 @@ mod test {
 
     #[test]
     fn example_a_2() {
-        let map = MapLevel::from_file("input/example_20_2.txt");
+        let map = Maze::from_file("input/example_20_2.txt");
         assert_eq!(map.single_level_path(), 58);
     }
 
@@ -198,9 +315,19 @@ mod test {
     }
 
     #[test]
-    fn load_map() {
-        let map = MapLevel::from_input_file();
-        assert_eq!(map.entrance(), point(49, 2));
-        assert_eq!(map.exit(), point(37, 106));
+    fn example_b_1() {
+        let map = Maze::from_file("input/example_20_1.txt");
+        assert_eq!(map.multi_level_path(), 26);
+    }
+
+    #[test]
+    fn example_b_3() {
+        let map = Maze::from_file("input/example_20_3.txt");
+        assert_eq!(map.multi_level_path(), 396);
+    }
+
+    #[test]
+    fn solution_b() {
+        assert_eq!(solve_b(), 5774);
     }
 }
