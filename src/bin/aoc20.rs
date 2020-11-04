@@ -1,3 +1,5 @@
+//! AoC 2019-20: Find the shortest path through a (recursive) maze.
+
 #![allow(unused_imports, dead_code)]
 
 use mbp_aoc2019::shortest_path::shortest_distance;
@@ -23,13 +25,9 @@ fn solve_a_from_file(filename: &str) -> isize {
 }
 
 fn shortest_aa_zz_path(s: &str) -> isize {
-    let mut mb = Matrix::<char>::from_rows();
-    for l in s.lines() {
-        let cv: Vec<char> = l.chars().collect();
-        mb.add_row(&cv);
-    }
-    // Raw matrix of just uninterpreted chars.
-    let mat = mb.finish();
+    let mat = Matrix::from_string_lines(s);
+    debug_assert!(mat.height() > 5, mat.height());
+    debug_assert!(mat.width() > 5, mat.width());
 
     let mut adj = find_square_adjacencies(&mat);
     let labels = find_labels(&mat);
