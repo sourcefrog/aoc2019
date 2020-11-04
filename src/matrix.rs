@@ -111,12 +111,14 @@ impl<T: Clone> Matrix<T> {
 }
 
 impl Matrix<char> {
-    /// Build a matrix from a rectangular string.
+    /// Build a matrix from a string containing multiple lines.
+    ///
+    /// All non-empty lines must be the same length.
     pub fn from_string_lines(s: &str) -> Matrix<char> {
-        let lines = || s.lines().map(str::trim).filter(|l| !l.is_empty());
-        let w = lines().map(str::len).min().unwrap() as isize;
-        let h = lines().count() as isize;
-        let d: Vec<char> = lines().map(str::chars).flatten().collect();
+        let lines: Vec<&str> = s.lines().filter(|l| !l.is_empty()).collect();
+        let w = lines.iter().map(|s| s.len()).min().unwrap() as isize;
+        let h = lines.len() as isize;
+        let d: Vec<char> = lines.iter().map(|s| s.chars()).flatten().collect();
         Matrix { w, h, d }
     }
 
@@ -207,5 +209,13 @@ mod test {
         assert_eq!(m[point(0, 0)], 1);
         assert_eq!(m[point(2, 0)], 3);
         assert_eq!(m[point(2, 2)], 9);
+    }
+
+    #[test]
+    fn from_string() {
+        let input = std::fs::read_to_string("input/input20.txt").unwrap();
+        let matrix = Matrix::from_string_lines(&input);
+        assert_eq!(matrix.width(), 107);
+        assert_eq!(matrix.height(), 109);
     }
 }
