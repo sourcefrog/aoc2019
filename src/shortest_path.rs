@@ -11,7 +11,7 @@ type D = isize;
 /// as isizes.
 ///
 /// This takes a callback which returns all the neighbors from `p: P` and
-/// the distance to them, as tuples. The neighbor callback is mut to allow
+/// the incremental distance to them, as tuples. The neighbor callback is mut to allow
 /// for internal caching.
 pub fn shortest_distance<P, N>(origin: P, dest: P, nbr_fn: &mut N) -> D
 where
@@ -21,6 +21,7 @@ where
     shortest_distance_fn(origin, |&p| dest == p, nbr_fn)
 }
 
+/// Calculate the shortest distance, with a callback that says whether a point is the destination.
 pub fn shortest_distance_fn<P, N, DF>(origin: P, dest_fn: DF, nbr_fn: &mut N) -> D
 where
     P: Eq + Ord + Copy,

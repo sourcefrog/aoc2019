@@ -2,99 +2,118 @@
 
 #![allow(unused_imports, dead_code)]
 
+use std::collections::BTreeMap;
+use std::path::Path;
+
 use mbp_aoc2019::shortest_path::shortest_distance;
 use mbp_aoc2019::{point, Matrix, Point};
-use std::collections::BTreeMap;
 
 const PASSAGE: char = '.';
 
-type AdjMap = BTreeMap<Point, Vec<Point>>;
 type Label = String;
-type LabelMap = BTreeMap<Label, Vec<Point>>;
 
 pub fn main() {
     println!("20a: {}", solve_a());
 }
 
 fn solve_a() -> isize {
-    solve_a_from_file("input/input20.txt")
+    MapLevel::from_input_file().single_level_path()
 }
 
-fn solve_a_from_file(filename: &str) -> isize {
-    shortest_aa_zz_path(&std::fs::read_to_string(filename).unwrap())
+/// Describes one level of the possibly-recursive map.
+struct MapLevel {
+    /// Character-matrix representation.
+    matrix: Matrix<char>,
+
+    /// Map from the two-letter labels to the labelled positions/s on the map.
+    /// (For AA and ZZ there should be only one labelled point; for everything else
+    /// there should be two.)
+    labels: BTreeMap<Label, Vec<Point>>,
+
+    /// For twinned portals, a symmetric map from the entry to the exit.
+    warps: BTreeMap<Point, Point>,
 }
 
-fn shortest_aa_zz_path(s: &str) -> isize {
-    let mat = Matrix::from_string_lines(s);
-    debug_assert!(mat.height() > 5, mat.height());
-    debug_assert!(mat.width() > 5, mat.width());
-
-    let mut adj = find_square_adjacencies(&mat);
-    let labels = find_labels(&mat);
-    add_portal_adjacencies(&labels, &mut adj);
-
-    let aa = dbg!(find_single_portal(&labels, "AA"));
-    let zz = dbg!(find_single_portal(&labels, "ZZ"));
-
-    // Get all neighbors of p, and they're all distance 1.
-    let mut neighb = |p| adj.get(&p).unwrap().iter().map(|p1| (*p1, 1)).collect();
-
-    shortest_distance(aa, zz, &mut neighb)
-}
-
-#[allow(unused)]
-fn dump_adjacencies(adj: &AdjMap) {
-    for (k, v) in adj.iter() {
-        println!("{:3}, {:3} => {:?}", k.x, k.y, v);
-    }
-}
-
-fn find_single_portal(labels: &LabelMap, name: &str) -> Point {
-    match labels.get(name).map(Vec::as_slice) {
-        Some([p1]) => *p1,
-        other => panic!("expected one point at {:?}, got {:?}", name, other),
-    }
-}
-
-/// Transform a list of portal locations to adjacencies between their entry
-/// squares. Entry/exit portals with only one square are skipped.
-fn add_portal_adjacencies(labels: &LabelMap, map: &mut AdjMap) {
-    for (label, ps) in labels.iter() {
-        match ps.as_slice() {
-            [p1, p2] => {
-                // Both p1 and p2 should already be known.
-                map.get_mut(&p1).unwrap().push(*p2);
-                map.get_mut(&p2).unwrap().push(*p1);
+impl MapLevel {
+    pub fn from_string(s: &str) -> MapLevel {
+        let matrix = Matrix::from_string_lines(s);
+        let labels = find_labels(&matrix);
+        let mut warps = BTreeMap::new();
+        for (label, points) in &labels {
+            if label == "AA" || label == "ZZ" {
+                assert_eq!(points.len(), 1);
+                continue;
             }
-            [_] => { /* entry or exit label */ }
-            _ => panic!("unexpected {:?} {:?}", label, ps),
-        };
-    }
-}
-
-/// Return a map from points that are open passages, to other points that are
-/// neighboring open passages.
-fn find_square_adjacencies(mat: &Matrix<char>) -> AdjMap {
-    let mut v = BTreeMap::new();
-    for p0 in mat.iter_points() {
-        if mat[p0] == PASSAGE {
-            let a: Vec<Point> = mat
-                .neighbors4(p0)
-                .into_iter()
-                .filter(|(_, c1)| **c1 == PASSAGE)
-                .map(|(p1, _)| p1)
-                .collect();
-            if !a.is_empty() {
-                assert!(v.insert(p0, a).is_none());
-            }
+            assert_eq!(points.len(), 2);
+            let exists = warps.insert(points[0], points[1]).is_some();
+            assert!(!exists);
+            let exists = warps.insert(points[1], points[0]).is_some();
+            assert!(!exists);
+        }
+        MapLevel {
+            matrix,
+            labels,
+            warps,
         }
     }
-    v
+
+    pub fn from_file(path: &str) -> MapLevel {
+        MapLevel::from_string(&std::fs::read_to_string(path).unwrap())
+    }
+
+    pub fn from_input_file() -> MapLevel {
+        MapLevel::from_file("input/input20.txt")
+    }
+
+    /// Find the entry or exit portal.
+    fn find_single_portal(&self, name: &str) -> Point {
+        debug_assert!(name == "AA" || name == "ZZ");
+        match self.labels.get(name).map(Vec::as_slice) {
+            Some([p1]) => *p1,
+            other => panic!("expected one point at {:?}, got {:?}", name, other),
+        }
+    }
+
+    fn entrance(&self) -> Point {
+        self.find_single_portal("AA")
+    }
+
+    fn exit(&self) -> Point {
+        self.find_single_portal("ZZ")
+    }
+
+    /// Return the neighbors of point `p` in a single-level map.
+    ///
+    /// `p` must be a passage square.
+    ///
+    /// That is: immediately neighboring other passage squares, or if there is a neighboring portal
+    /// that has a twin, you can warp to the square outside its twin. All of these are one step.
+    fn single_level_neighbors(&self, p: Point) -> Vec<(Point, isize)> {
+        debug_assert_eq!(self.matrix.try_get(p).unwrap(), PASSAGE);
+        let mut n: Vec<(Point, isize)> = self
+            .matrix
+            .neighbors4(p)
+            .into_iter()
+            .filter(|(_, c1)| **c1 == PASSAGE)
+            .map(|(p1, _)| (p1, 1))
+            .collect();
+        if let Some(out_p) = self.warps.get(&p) {
+            n.push((*out_p, 1))
+        }
+        n
+    }
+
+    /// Find the length of the shortest path from AA to ZZ in a single-level map.
+    fn single_level_path(&self) -> isize {
+        shortest_distance(self.entrance(), self.exit(), &mut |p| {
+            self.single_level_neighbors(p)
+        })
+    }
 }
 
 /// Return a map from labels to the 1 or 2 points they label.
-fn find_labels(mat: &Matrix<char>) -> LabelMap {
-    let mut v = LabelMap::new();
+fn find_labels(mat: &Matrix<char>) -> BTreeMap<Label, Vec<Point>> {
+    let mut v: BTreeMap<Label, Vec<Point>> = BTreeMap::new();
     // Trick here is not to be confused by finding the second character
     // of the labels...
     //
@@ -135,20 +154,12 @@ fn find_labels(mat: &Matrix<char>) -> LabelMap {
                 } else if mat.try_get(pdown.down()) == Some(PASSAGE) {
                     found(name, pdown.down());
                 } else {
-                    panic!("confused at {:?}", p);
+                    panic!("portal at {:?} does not seem to be near a passage", p);
                 }
             }
         }
     }
-    // dump_portals(&mut std::io::stdout(), &v);
     v
-}
-
-#[allow(unused)]
-fn dump_portals(w: &mut dyn std::io::Write, portals: &LabelMap) {
-    for (name, ps) in portals.iter() {
-        writeln!(w, "{}: {:?}", name, ps).unwrap();
-    }
 }
 
 #[cfg(test)]
@@ -156,17 +167,40 @@ mod test {
     use super::*;
 
     #[test]
-    fn example_a_1() {
-        assert_eq!(solve_a_from_file("input/example_20_1.txt"), 23);
+    fn example_a_1_without_warps() {
+        let mut map = MapLevel::from_file("input/example_20_1.txt");
+        map.warps.clear();
+        assert_eq!(map.single_level_path(), 26);
+    }
+
+    #[test]
+    fn example_a_1_new() {
+        let map = MapLevel::from_file("input/example_20_1.txt");
+        assert_eq!(
+            *map.labels.get("BC").unwrap(),
+            vec![point(9, 6), point(2, 8)]
+        );
+        // Warps through BC exist
+        assert_eq!(*map.warps.get(&point(2, 8)).unwrap(), point(9, 6));
+        assert_eq!(*map.warps.get(&point(9, 6)).unwrap(), point(2, 8));
+        assert_eq!(map.single_level_path(), 23);
     }
 
     #[test]
     fn example_a_2() {
-        assert_eq!(solve_a_from_file("input/example_20_2.txt"), 58);
+        let map = MapLevel::from_file("input/example_20_2.txt");
+        assert_eq!(map.single_level_path(), 58);
     }
 
     #[test]
     fn solution_a() {
         assert_eq!(solve_a(), 454);
+    }
+
+    #[test]
+    fn load_map() {
+        let map = MapLevel::from_input_file();
+        assert_eq!(map.entrance(), point(49, 2));
+        assert_eq!(map.exit(), point(37, 106));
     }
 }
