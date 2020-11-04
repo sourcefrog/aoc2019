@@ -1,7 +1,7 @@
 //! Simple 2D integer-indexed point.
 use std::fmt;
 
-#[derive(Copy, Clone, PartialEq, Eq, Ord, PartialOrd)]
+#[derive(Copy, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
 pub struct Point {
     pub y: isize,
     pub x: isize,

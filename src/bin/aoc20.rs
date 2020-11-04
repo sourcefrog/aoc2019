@@ -3,7 +3,7 @@
 #![allow(unused_imports, dead_code)]
 
 use std::cell::RefCell;
-use std::collections::BTreeMap;
+use std::collections::HashMap;
 use std::path::Path;
 
 use mbp_aoc2019::shortest_path::shortest_distance;
@@ -34,21 +34,21 @@ struct Maze {
     /// Map from the two-letter labels to the labelled positions/s on the maze.
     /// (For AA and ZZ there should be only one labelled point; for everything else
     /// there should be two.)
-    labels: BTreeMap<Label, Vec<Point>>,
+    labels: HashMap<Label, Vec<Point>>,
 
     /// For twinned portals, a symmetric map from the entry to the exit.
-    warps: BTreeMap<Point, Point>,
+    warps: HashMap<Point, Point>,
 
     /// Points on the inside that connect downward to a smaller maze.
-    warp_down: BTreeMap<Point, Point>,
-    warp_up: BTreeMap<Point, Point>,
+    warp_down: HashMap<Point, Point>,
+    warp_up: HashMap<Point, Point>,
 
     /// Memoized same-level neighbors.
-    memo_neighbors: RefCell<BTreeMap<Point, Vec<Point>>>,
+    memo_neighbors: RefCell<HashMap<Point, Vec<Point>>>,
 }
 
 /// A point in 3d-space
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 struct Point3 {
     /// Depth into the maze, where the entrance and exit are at 0
     depth: isize,
@@ -70,7 +70,7 @@ impl Maze {
     pub fn from_string(s: &str) -> Maze {
         let matrix = Matrix::from_string_lines(s);
         let labels = find_labels(&matrix);
-        let mut warps = BTreeMap::new();
+        let mut warps = HashMap::new();
         for (label, points) in &labels {
             if label == "AA" || label == "ZZ" {
                 assert_eq!(points.len(), 1);
@@ -82,8 +82,8 @@ impl Maze {
             let exists = warps.insert(points[1], points[0]).is_some();
             assert!(!exists);
         }
-        let mut warp_down = BTreeMap::new();
-        let mut warp_up = BTreeMap::new();
+        let mut warp_down = HashMap::new();
+        let mut warp_up = HashMap::new();
         // Coordinates for the outer ring
         let top = 2;
         let bottom = (matrix.height() - 3) as isize;
@@ -104,7 +104,7 @@ impl Maze {
             warps,
             warp_down,
             warp_up,
-            memo_neighbors: RefCell::new(BTreeMap::new()),
+            memo_neighbors: RefCell::new(HashMap::new()),
         }
     }
 
@@ -224,8 +224,8 @@ impl Maze {
 }
 
 /// Return a map from labels to the 1 or 2 points they label.
-fn find_labels(mat: &Matrix<char>) -> BTreeMap<Label, Vec<Point>> {
-    let mut v: BTreeMap<Label, Vec<Point>> = BTreeMap::new();
+fn find_labels(mat: &Matrix<char>) -> HashMap<Label, Vec<Point>> {
+    let mut v: HashMap<Label, Vec<Point>> = HashMap::new();
     // Trick here is not to be confused by finding the second character
     // of the labels...
     //
