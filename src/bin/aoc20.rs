@@ -2,6 +2,7 @@
 
 #![allow(unused_imports, dead_code)]
 
+use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::path::Path;
 
@@ -41,6 +42,9 @@ struct Maze {
     /// Points on the inside that connect downward to a smaller maze.
     warp_down: BTreeMap<Point, Point>,
     warp_up: BTreeMap<Point, Point>,
+
+    /// Memoized same-level neighbors.
+    memo_neighbors: RefCell<BTreeMap<Point, Vec<Point>>>,
 }
 
 /// A point in 3d-space
@@ -50,6 +54,16 @@ struct Point3 {
     depth: isize,
     x: isize,
     y: isize,
+}
+
+impl Point3 {
+    fn at_depth(p: Point, depth: isize) -> Point3 {
+        Point3 {
+            x: p.x,
+            y: p.y,
+            depth,
+        }
+    }
 }
 
 impl Maze {
@@ -90,6 +104,7 @@ impl Maze {
             warps,
             warp_down,
             warp_up,
+            memo_neighbors: RefCell::new(BTreeMap::new()),
         }
     }
 
@@ -136,6 +151,22 @@ impl Maze {
         }
     }
 
+    /// Return the same-level neighbors, without portals.
+    fn flat_neighbors(&self, p: Point) -> Vec<Point> {
+        self.memo_neighbors
+            .borrow_mut()
+            .entry(p)
+            .or_insert_with(|| {
+                self.matrix
+                    .neighbors4(p)
+                    .into_iter()
+                    .filter(|(_, c1)| **c1 == PASSAGE)
+                    .map(|(p1, _)| p1)
+                    .collect()
+            })
+            .clone()
+    }
+
     /// Return the neighbors of point `p` in a single-level maze.
     ///
     /// `p` must be a passage square.
@@ -144,13 +175,8 @@ impl Maze {
     /// that has a twin, you can warp to the square outside its twin. All of these are one step.
     fn single_level_neighbors(&self, p: Point) -> Vec<(Point, isize)> {
         debug_assert_eq!(self.matrix.try_get(p).unwrap(), PASSAGE);
-        let mut n: Vec<(Point, isize)> = self
-            .matrix
-            .neighbors4(p)
-            .into_iter()
-            .filter(|(_, c1)| **c1 == PASSAGE)
-            .map(|(p1, _)| (p1, 1))
-            .collect();
+        let mut n: Vec<(Point, isize)> =
+            self.flat_neighbors(p).into_iter().map(|p| (p, 1)).collect();
         if let Some(out_p) = self.warps.get(&p) {
             n.push((*out_p, 1))
         }
@@ -165,43 +191,19 @@ impl Maze {
         let flatp = point(p3.x, p3.y);
         let depth = p3.depth;
         let mut n: Vec<(Point3, isize)> = self
-            .matrix
-            .neighbors4(flatp)
+            .flat_neighbors(flatp)
             .into_iter()
-            .filter(|(_, c1)| **c1 == PASSAGE)
-            .map(|(p1, _)| {
-                (
-                    Point3 {
-                        x: p1.x,
-                        y: p1.y,
-                        depth,
-                    },
-                    1,
-                )
-            })
+            .map(|p1| (Point3::at_depth(p1, depth), 1))
             .collect();
         // if let Some(out_p) = self.warps.get(&p) { n.push((*out_p, 1)) }
         if depth > 0 {
-            if let Some(out) = self.warp_up.get(&flatp) {
-                n.push((
-                    Point3 {
-                        depth: depth - 1,
-                        x: out.x,
-                        y: out.y,
-                    },
-                    1,
-                ));
+            if let Some(up) = self.warp_up.get(&flatp) {
+                n.push((Point3::at_depth(*up, depth - 1), 1));
             }
         }
         if let Some(down) = self.warp_down.get(&flatp) {
-            n.push((
-                Point3 {
-                    depth: depth + 1,
-                    x: down.x,
-                    y: down.y,
-                },
-                1,
-            ));
+            // println!("Down to {}", depth + 1);
+            n.push((Point3::at_depth(*down, depth + 1), 1));
         }
         n
     }
@@ -328,6 +330,6 @@ mod test {
 
     #[test]
     fn solution_b() {
-        assert_eq!(solve_b(), 5774);
+        assert_eq!(solve_b(), 5744);
     }
 }
