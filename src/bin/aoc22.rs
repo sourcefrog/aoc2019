@@ -99,12 +99,13 @@ fn card_at(position: i64, transforms: &[Transform], n_cards: i64) -> i64 {
 struct Collapsed {
     a: i64,
     b: i64,
+    n: i64,
 }
 
 impl Collapsed {
     /// Given a list of transforms, collapse it into a single linear transform
     /// `ax + b` describing the final position of card `x.`.
-    fn collapse(transforms: &[Transform]) -> Collapsed {
+    fn collapse(transforms: &[Transform], n: i64) -> Collapsed {
         let mut a = 1;
         let mut b = 0;
         for t in transforms {
@@ -121,14 +122,16 @@ impl Collapsed {
                     b -= i;
                 }
             }
+            a = a % n;
+            b = b % n;
         }
-        Collapsed { a, b }
+        Collapsed { a, b, n }
     }
     /// Given a collapsed transform, produce the deck
-    fn to_deck(&self, n_cards: i64) -> Vec<i64> {
-        let mut r = vec![-1; n_cards as usize];
-        for i in 0..n_cards {
-            let pos = (self.a * i + self.b).rem_euclid(n_cards);
+    fn to_deck(&self) -> Vec<i64> {
+        let mut r = vec![-1; self.n as usize];
+        for i in 0..(self.n) {
+            let pos = (self.a * i + self.b).rem_euclid(self.n);
             let pos: usize = pos.try_into().unwrap();
             assert!(r[pos] == -1);
             r[pos] = i;
@@ -263,8 +266,8 @@ mod test {
     fn check_eval(input: &str, n_cards: i64, expected: &str) {
         let transforms = parse_input(input);
         // let result = cards_to_string(&eval_all_cards(&transforms, n_cards));
-        let collapse = Collapsed::collapse(&transforms);
-        let result = cards_to_string(&collapse.to_deck(n_cards));
+        let collapse = Collapsed::collapse(&transforms, n_cards);
+        let result = cards_to_string(&collapse.to_deck());
         assert_eq!(result, expected, "wrong result for {}", input);
     }
 
@@ -340,5 +343,15 @@ mod test {
             10,
             "9 2 5 8 1 4 7 0 3 6",
         );
+    }
+
+    #[test]
+    fn solve_a_collapsed() {
+        let transforms = parse_input(&std::fs::read_to_string("input/input22.txt").unwrap());
+        let collapsed = Collapsed::collapse(&transforms, 10007);
+        let deck = collapsed.to_deck();
+        // what is the position of card 2019?
+        let pos = deck.iter().position(|c| *c == 2019).unwrap();
+        assert_eq!(pos, 3749);
     }
 }
