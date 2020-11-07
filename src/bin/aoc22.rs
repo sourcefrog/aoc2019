@@ -4,34 +4,47 @@ use std::{convert::TryInto, str::FromStr};
 use modinverse::modinverse;
 use num_integer::gcd;
 
-// 22b: The number of cards, and the number of iterations, are both clearly so high
-// that we can't do them by brute force.
+// 22b: The number of cards, and the number of iterations, are both clearly so
+// high that we can't do them by brute force.
 //
 // However, all the operations on the deck actually look like arithmetic
 // operations modulo N_CARDS. So, possibly we can form a polynomial from the
-// instructions that says what original card is at position X. Then, possibly
-// by raising that polynomial to B_ROUNDS we can find out, in closed form,
-// the answer after many iterations.
+// instructions that says what original card is at position X. Then, possibly by
+// raising that polynomial to B_ROUNDS we can find out, in closed form, the
+// answer after many iterations.
 //
 // The "deal with increment" operations, which are effectively multiplications,
 // seem to be the hard part. And, I'm still not sure how this whole thing will
 // be raised to an astronomical power.
 //
-// Maybe instead of thinking of individual cards moving, we should think of the whole
-// vector being stretched, reversed, and rotated.
+// Maybe instead of thinking of individual cards moving, we should think of the
+// whole vector being stretched, reversed, and rotated.
 //
-// In fact really this is just all an `ax + b` affine transformation, of additive shifts
-// and multiplications, where reversals are just a multiplication by -1.
+// In fact really this is just all an `ax + b` affine transformation, of
+// additive shifts and multiplications, where reversals are just a
+// multiplication by -1.
 //
 // Furthermore, repeating the instructions is also just a multiplication of the
-// transformations by the number of repetitions.
+// transformations by the number of repetitions.o
+//
+// Both the number of cards and the number of rounds are prime, which can't be a
+// coincidence.
+//
+// However interestingly the computed a and b do have factors, but no common
+// factors:
+//
+// a = 2453562856896 = 2^6×3×23×281×1977251 (10 prime factors, 5 distinct)
+// b = 26048896043585 = 5×2053×2537642089 (3 distinct prime factors)
+//
+// (Obviously they will have factors, as they're the product of some of the input
+// values.)
 
-const B_CARDS: u64 = 119315717514047;
-const B_ROUNDS: u64 = 101741582076661;
+const B_CARDS: i128 = 119315717514047;
+const B_ROUNDS: i128 = 101741582076661;
 
 pub fn main() {
     println!("22a: {}", solve_a());
-    // println!("22b: {}", solve_b());
+    println!("22b: {}", solve_b());
 }
 
 fn load_input() -> String {
@@ -40,19 +53,15 @@ fn load_input() -> String {
 
 fn solve_a() -> i128 {
     let transforms = parse_input(&load_input());
-    let collapsed = Collapsed::collapse(&transforms, 10007);
+    let collapsed = Fold::new(&transforms, 10007);
     collapsed.position_of_card(2019)
 }
 
 fn solve_b() -> i128 {
     let transforms = parse_input(&load_input());
-    let coll = Collapsed::collapse(&transforms, 119315717514047);
-    let mut pos = 2020;
-    for i in 0..100 {
-        println!("{}: pos={}", i, pos);
-        pos = coll.card_in_position(pos);
-    }
-    0
+    let fold = Fold::new(&transforms, B_CARDS);
+    let bigfold = fold.exponent(B_ROUNDS);
+    bigfold.card_in_position(2020)
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Copy)]
@@ -121,16 +130,16 @@ fn card_at(position: i128, transforms: &[Transform], n_cards: i128) -> i128 {
 /// Transforms applied to the original deck so that card `i` ends up in position
 /// `(a * i + b).rem_euclid(n)`,
 #[derive(Debug, Eq, PartialEq, Clone)]
-struct Collapsed {
+struct Fold {
     a: i128,
     b: i128,
     n: i128,
 }
 
-impl Collapsed {
+impl Fold {
     /// Given a list of transforms, collapse it into a single linear transform
     /// `ax + b` describing the final position of card `x.`.
-    fn collapse(transforms: &[Transform], n: i128) -> Collapsed {
+    fn new(transforms: &[Transform], n: i128) -> Fold {
         let mut a: i128 = 1;
         let mut b: i128 = 0;
         for t in transforms {
@@ -147,10 +156,14 @@ impl Collapsed {
                     b -= *i;
                 }
             }
-            a = a % n;
-            b = b % n;
+            a = a.rem_euclid(n);
+            b = b.rem_euclid(n);
         }
-        Collapsed { a, b, n }
+        Fold { a, b, n }
+    }
+
+    fn identity(n: i128) -> Fold {
+        Fold { a: 1, b: 0, n }
     }
 
     /// Given a collapsed transform, produce the deck
@@ -179,21 +192,49 @@ impl Collapsed {
         assert_eq!(gcd(self.a, self.n), 1);
         // dbg!(gcd(self.a, self.n));
         // dbg!(self.a / self.n, self.a % self.n);
+        debug_assert_eq!(self.a, self.a.rem_euclid(self.n));
         let inv = modinverse(self.a, self.n).expect("no modular inverse");
         // Now we need to find: what number, multiplied by a, equals pos, modulo self.n?
         (inv * x).rem_euclid(self.n)
     }
 
-    /// Find which card is in a given position after several applications.
-    fn card_in_position_repeated(&self, pos: i128, reps: i128) -> i128 {
-        let inv = modinverse(self.a, self.n).expect("no modular inverse");
-        assert_eq!(gcd(inv, self.n), 1);
-        // Going back one rep, the card that was here is
-        let mut c = pos;
-        for _i in 0..reps {
-            c = (inv * (c - self.b)).rem_euclid(self.n)
+    // Calculate the fold that would result from applying this twice
+    fn double(&self) -> Fold {
+        // pos = (a * c + b)
+        // pos^2 = (a * (a * c + b) + b)
+        // === a^2*c + ab + b
+        Fold {
+            a: (self.a * self.a).rem_euclid(self.n),
+            b: ((self.a + 1) * self.b).rem_euclid(self.n),
+            n: self.n,
         }
-        c
+    }
+
+    // Calculate the fold that results from applying two folds successively.
+    fn multiply(&self, other: &Fold) -> Fold {
+        // pos = (a1 * (a2 * c + b2) + b1)
+        // === a1*a2*c + a1*b2 + b1
+        assert_eq!(self.n, other.n);
+        Fold {
+            a: (self.a * other.a).rem_euclid(self.n),
+            b: (self.a * other.b + self.b).rem_euclid(self.n),
+            n: self.n,
+        }
+    }
+
+    // Raise this fold to an exponent.
+    fn exponent(&self, mut exp: i128) -> Fold {
+        let mut result = Fold::identity(self.n);
+        assert!(exp > 0);
+        let mut base = self.clone();
+        while exp > 0 {
+            if (exp & 1) == 1 {
+                result = result.multiply(&base);
+            }
+            base = base.double();
+            exp = exp >> 1;
+        }
+        result
     }
 }
 
@@ -208,7 +249,7 @@ mod test {
 
     fn check_eval(input: &str, n_cards: i128, expected: &str) {
         let transforms = parse_input(input);
-        let collapse = Collapsed::collapse(&transforms, n_cards);
+        let collapse = Fold::new(&transforms, n_cards);
         let result = cards_to_string(&collapse.to_deck());
         assert_eq!(result, expected, "wrong result for {}", input);
     }
@@ -289,22 +330,43 @@ mod test {
 
     #[test]
     fn solve_a_collapsed() {
-        let collapsed = Collapsed::collapse(&parse_input(&load_input()), 10007);
-        assert_eq!(collapsed.position_of_card(2019), 3749);
-        let deck = collapsed.to_deck();
+        let fold = Fold::new(&parse_input(&load_input()), 10007);
+        assert_eq!(fold.position_of_card(2019), 3749);
+        let deck = fold.to_deck();
         // what is the position of card 2019?
         let pos = deck.iter().position(|c| *c == 2019).unwrap();
         assert_eq!(pos, 3749);
-        assert_eq!(collapsed.card_in_position(3749), 2019);
+        assert_eq!(fold.card_in_position(3749), 2019);
     }
 
     #[test]
-    fn solve_a_reps() {
-        let coll = Collapsed::collapse(&parse_input(&load_input()), 10007);
-        assert_eq!(coll.card_in_position_repeated(3749, 1), 2019);
-        assert_eq!(
-            coll.card_in_position_repeated(3749, 2),
-            coll.card_in_position(2019)
-        );
+    fn multiplying_folds() {
+        let fold = Fold::new(&parse_input(&load_input()), B_CARDS);
+        assert_eq!(fold.card_in_position(2020), 36005810730586);
+        let fold2 = fold.double();
+        assert_eq!(fold2.card_in_position(2020), 73091068072643);
+        let fold4 = fold2.double();
+        assert_eq!(fold4.card_in_position(2020), 46845718844529);
+
+        // try multiply
+        let fold3 = fold.multiply(&fold2);
+        assert_eq!(fold3.card_in_position(2020), 48659237259576);
+
+        let fold3b = fold2.multiply(&fold);
+        assert_eq!(fold3b.card_in_position(2020), 48659237259576);
+
+        assert_eq!(fold3, fold3b);
+
+        // Can calculate directly as an exponent
+        assert_eq!(fold.exponent(3), fold3);
+        let fold8 = fold4.double();
+        let fold10 = fold8.multiply(&fold2);
+        assert_eq!(fold.exponent(8), fold8);
+        assert_eq!(fold.exponent(10), fold10);
+    }
+
+    #[test]
+    fn solution_b() {
+        assert_eq!(solve_b(), 77225522112241);
     }
 }
